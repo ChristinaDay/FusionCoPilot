@@ -1,0 +1,258 @@
+{
+  "prompt_examples": [
+    {
+      "id": 1,
+      "category": "Basic Shapes",
+      "prompt": "Create a 100x50mm rectangular plate that's 5mm thick",
+      "difficulty": "beginner",
+      "expected_operations": ["create_sketch", "draw_rectangle", "extrude"],
+      "description": "Simple rectangular extrusion with specified dimensions"
+    },
+    {
+      "id": 2,
+      "category": "Basic Shapes",
+      "prompt": "Make a cube that's 25mm on all sides",
+      "difficulty": "beginner",
+      "expected_operations": ["create_sketch", "draw_rectangle", "extrude"],
+      "description": "Basic cube creation with equal dimensions"
+    },
+    {
+      "id": 3,
+      "category": "Basic Shapes", 
+      "prompt": "Create a cylinder 20mm diameter and 30mm tall",
+      "difficulty": "beginner",
+      "expected_operations": ["create_sketch", "draw_circle", "extrude"],
+      "description": "Cylindrical extrusion from circle sketch"
+    },
+    {
+      "id": 4,
+      "category": "Holes & Features",
+      "prompt": "Add a 6mm hole in the center of this face",
+      "difficulty": "intermediate",
+      "expected_operations": ["create_hole"],
+      "description": "Simple hole feature with diameter specification",
+      "requires_selection": true
+    },
+    {
+      "id": 5,
+      "category": "Holes & Features",
+      "prompt": "Create 4 corner holes, 8mm diameter, 10mm from edges",
+      "difficulty": "intermediate",
+      "expected_operations": ["create_hole", "pattern_rectangular"],
+      "description": "Multiple holes with pattern and positioning constraints"
+    },
+    {
+      "id": 6,
+      "category": "Holes & Features",
+      "prompt": "Make a countersunk hole 6mm diameter with 12mm countersink",
+      "difficulty": "intermediate",
+      "expected_operations": ["countersink_hole"],
+      "description": "Specialized hole type with countersink parameters"
+    },
+    {
+      "id": 7,
+      "category": "Edge Modifications",
+      "prompt": "Fillet all edges with 3mm radius",
+      "difficulty": "intermediate",
+      "expected_operations": ["fillet"],
+      "description": "Apply fillet to multiple edges with specified radius"
+    },
+    {
+      "id": 8,
+      "category": "Edge Modifications", 
+      "prompt": "Chamfer the top edges by 2mm at 45 degrees",
+      "difficulty": "intermediate",
+      "expected_operations": ["chamfer"],
+      "description": "Chamfer specific edges with distance and angle"
+    },
+    {
+      "id": 9,
+      "category": "Patterns",
+      "prompt": "Create a linear pattern of 5 holes spaced 20mm apart along the X-axis",
+      "difficulty": "intermediate",
+      "expected_operations": ["create_hole", "pattern_linear"],
+      "description": "Linear pattern with count and spacing parameters"
+    },
+    {
+      "id": 10,
+      "category": "Patterns",
+      "prompt": "Make a circular pattern of 8 holes around the center, 40mm radius",
+      "difficulty": "intermediate",
+      "expected_operations": ["create_hole", "pattern_circular"],
+      "description": "Circular pattern with count and radius parameters"
+    },
+    {
+      "id": 11,
+      "category": "Advanced Operations",
+      "prompt": "Shell this part with 2mm wall thickness, remove the top face",
+      "difficulty": "advanced",
+      "expected_operations": ["shell"],
+      "description": "Shell operation with thickness and face removal",
+      "requires_selection": true
+    },
+    {
+      "id": 12,
+      "category": "Advanced Operations",
+      "prompt": "Mirror this feature across the YZ plane",
+      "difficulty": "advanced", 
+      "expected_operations": ["mirror"],
+      "description": "Mirror feature across specified plane",
+      "requires_selection": true
+    },
+    {
+      "id": 13,
+      "category": "Construction",
+      "prompt": "Create a construction plane 25mm offset from the XY plane",
+      "difficulty": "intermediate",
+      "expected_operations": ["create_plane"],
+      "description": "Construction geometry for advanced modeling"
+    },
+    {
+      "id": 14,
+      "category": "Modifications",
+      "prompt": "Make the top-left hole 2mm larger in diameter",
+      "difficulty": "advanced",
+      "expected_operations": ["set_dimension"],
+      "description": "Modify existing feature dimensions",
+      "requires_selection": true,
+      "ambiguous": true,
+      "clarification_needed": "Which hole is the 'top-left' hole? Please select the hole or provide coordinates."
+    },
+    {
+      "id": 15,
+      "category": "Complex Shapes",
+      "prompt": "Create a hexagonal prism 30mm across flats, 15mm tall",
+      "difficulty": "intermediate",
+      "expected_operations": ["create_sketch", "draw_polygon", "extrude"],
+      "description": "Polygon-based extrusion with specific geometry"
+    },
+    {
+      "id": 16,
+      "category": "Assemblies",
+      "prompt": "Create a new component for the mounting bracket",
+      "difficulty": "advanced",
+      "expected_operations": ["create_component"],
+      "description": "Component creation for assembly modeling"
+    },
+    {
+      "id": 17,
+      "category": "Units & Scaling",
+      "prompt": "Change document units to inches and scale this part by 1.5x",
+      "difficulty": "intermediate",
+      "expected_operations": ["set_dimension", "scale_feature"],
+      "description": "Unit conversion and scaling operations",
+      "requires_selection": true
+    },
+    {
+      "id": 18,
+      "category": "Complex Operations",
+      "prompt": "Revolve this profile 270 degrees around the Y-axis",
+      "difficulty": "advanced",
+      "expected_operations": ["revolve"],
+      "description": "Revolve operation with partial rotation",
+      "requires_selection": true
+    },
+    {
+      "id": 19,
+      "category": "Ambiguous Requests",
+      "prompt": "Make it bigger",
+      "difficulty": "beginner",
+      "expected_operations": [],
+      "description": "Intentionally vague request requiring clarification",
+      "ambiguous": true,
+      "clarification_needed": "What would you like to make bigger? Please specify the feature and by how much (e.g., 'make the hole 2mm larger' or 'increase the plate length by 10mm')."
+    },
+    {
+      "id": 20,
+      "category": "Multi-step Operations",
+      "prompt": "Create a mounting plate: 80x60x8mm with 4 corner holes (6mm) and a center cutout (20x30mm)",
+      "difficulty": "advanced",
+      "expected_operations": [
+        "create_sketch", 
+        "draw_rectangle", 
+        "extrude",
+        "create_sketch",
+        "draw_rectangle", 
+        "cut",
+        "create_hole",
+        "pattern_rectangular"
+      ],
+      "description": "Complex multi-step operation combining multiple features"
+    }
+  ],
+  "categories": {
+    "Basic Shapes": {
+      "description": "Simple geometric primitives like rectangles, circles, and basic extrusions",
+      "difficulty_range": "beginner"
+    },
+    "Holes & Features": {
+      "description": "Various types of holes, cuts, and feature additions",
+      "difficulty_range": "beginner-intermediate"
+    },
+    "Edge Modifications": {
+      "description": "Fillets, chamfers, and other edge treatments",
+      "difficulty_range": "intermediate"
+    },
+    "Patterns": {
+      "description": "Linear and circular patterns of features",
+      "difficulty_range": "intermediate"
+    },
+    "Advanced Operations": {
+      "description": "Complex operations like shell, mirror, and advanced modifications",
+      "difficulty_range": "advanced"
+    },
+    "Construction": {
+      "description": "Construction geometry and reference features",
+      "difficulty_range": "intermediate"
+    },
+    "Modifications": {
+      "description": "Editing existing features and dimensions",
+      "difficulty_range": "intermediate-advanced"
+    },
+    "Complex Shapes": {
+      "description": "Non-rectangular shapes and advanced geometry",
+      "difficulty_range": "intermediate"
+    },
+    "Assemblies": {
+      "description": "Multi-component and assembly operations",
+      "difficulty_range": "advanced"
+    },
+    "Units & Scaling": {
+      "description": "Unit conversion and scaling operations",
+      "difficulty_range": "intermediate"
+    },
+    "Complex Operations": {
+      "description": "Advanced CAD operations like revolve, sweep, loft",
+      "difficulty_range": "advanced"
+    },
+    "Ambiguous Requests": {
+      "description": "Intentionally vague prompts that require clarification",
+      "difficulty_range": "beginner-advanced"
+    },
+    "Multi-step Operations": {
+      "description": "Complex requests requiring multiple coordinated operations",
+      "difficulty_range": "advanced"
+    }
+  },
+  "difficulty_levels": {
+    "beginner": {
+      "description": "Simple, single-operation commands with clear parameters",
+      "expected_user": "New to CAD or natural language CAD tools"
+    },
+    "intermediate": {
+      "description": "Multi-step operations or operations requiring some CAD knowledge",
+      "expected_user": "Some CAD experience, comfortable with basic operations"
+    },
+    "advanced": {
+      "description": "Complex operations, feature modifications, or assembly work",
+      "expected_user": "Experienced CAD users looking for efficiency gains"
+    }
+  },
+  "usage_notes": {
+    "testing": "These examples are designed for comprehensive testing of the Co-Pilot system",
+    "training": "Can be used to train users on natural language CAD capabilities",
+    "validation": "Each example should produce a valid, executable plan",
+    "ambiguity_handling": "Some examples intentionally test ambiguity resolution",
+    "selection_context": "Examples marked 'requires_selection' assume user has pre-selected geometry"
+  }
+}

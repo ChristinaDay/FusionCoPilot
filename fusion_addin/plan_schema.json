@@ -1,0 +1,289 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://fusion-copilot.com/schemas/plan.json",
+  "title": "Fusion 360 Natural Language CAD Plan",
+  "description": "Structured plan format for converting natural language into deterministic CAD operations",
+  "type": "object",
+  "required": ["plan_id", "metadata", "operations"],
+  "properties": {
+    "plan_id": {
+      "type": "string",
+      "description": "Unique identifier for this plan",
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Plan metadata and context information",
+      "required": ["created_at", "natural_language_prompt", "estimated_duration_seconds"],
+      "properties": {
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when plan was created"
+        },
+        "natural_language_prompt": {
+          "type": "string",
+          "description": "Original user prompt that generated this plan",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "estimated_duration_seconds": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 3600,
+          "description": "Estimated execution time in seconds"
+        },
+        "confidence_score": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "LLM confidence in plan correctness (0.0 to 1.0)"
+        },
+        "requires_user_input": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether plan requires additional user clarification"
+        },
+        "clarification_questions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Questions to ask user if requires_user_input is true"
+        },
+        "units": {
+          "type": "string",
+          "enum": ["mm", "cm", "m", "in", "ft"],
+          "default": "mm",
+          "description": "Primary units for dimensional values in this plan"
+        },
+        "coordinate_system": {
+          "type": "string",
+          "enum": ["model", "sketch", "component"],
+          "default": "model",
+          "description": "Reference coordinate system for operations"
+        }
+      }
+    },
+    "operations": {
+      "type": "array",
+      "description": "Ordered list of CAD operations to execute",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/definitions/operation"
+      }
+    }
+  },
+  "definitions": {
+    "operation": {
+      "type": "object",
+      "required": ["op_id", "op", "params"],
+      "properties": {
+        "op_id": {
+          "type": "string",
+          "description": "Unique identifier for this operation within the plan",
+          "pattern": "^op_[0-9]+$"
+        },
+        "op": {
+          "type": "string",
+          "enum": [
+            "create_sketch",
+            "draw_line",
+            "draw_circle", 
+            "draw_rectangle",
+            "draw_polygon",
+            "draw_arc",
+            "draw_spline",
+            "extrude",
+            "cut",
+            "revolve",
+            "sweep",
+            "loft",
+            "fillet",
+            "chamfer",
+            "shell",
+            "mirror",
+            "pattern_linear",
+            "pattern_circular",
+            "pattern_path",
+            "create_plane",
+            "create_axis",
+            "create_point",
+            "set_dimension",
+            "add_constraint",
+            "rename_feature",
+            "create_component",
+            "create_joint",
+            "create_hole",
+            "thread_hole",
+            "countersink_hole",
+            "counterbore_hole"
+          ],
+          "description": "Type of CAD operation to perform"
+        },
+        "params": {
+          "type": "object",
+          "description": "Operation-specific parameters",
+          "additionalProperties": true
+        },
+        "target_ref": {
+          "type": "string",
+          "description": "Reference to target feature/entity (e.g., 'sketch_1', 'face_top', 'edge_front')"
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of op_ids this operation depends on"
+        },
+        "validation_rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/validation_rule"
+          },
+          "description": "Custom validation rules for this operation"
+        }
+      }
+    },
+    "validation_rule": {
+      "type": "object",
+      "required": ["rule_type", "condition"],
+      "properties": {
+        "rule_type": {
+          "type": "string",
+          "enum": ["dimension_bounds", "feature_exists", "material_property", "geometric_constraint"],
+          "description": "Type of validation to perform"
+        },
+        "condition": {
+          "type": "string",
+          "description": "Validation condition expression"
+        },
+        "error_message": {
+          "type": "string",
+          "description": "Custom error message if validation fails"
+        }
+      }
+    },
+    "dimension": {
+      "type": "object",
+      "required": ["value", "unit"],
+      "properties": {
+        "value": {
+          "type": "number",
+          "description": "Numeric value"
+        },
+        "unit": {
+          "type": "string",
+          "enum": ["mm", "cm", "m", "in", "ft", "deg", "rad"],
+          "description": "Unit of measurement"
+        }
+      }
+    },
+    "point3d": {
+      "type": "object",
+      "required": ["x", "y", "z"],
+      "properties": {
+        "x": {"type": "number"},
+        "y": {"type": "number"},
+        "z": {"type": "number"}
+      },
+      "description": "3D point coordinates"
+    },
+    "vector3d": {
+      "type": "object", 
+      "required": ["x", "y", "z"],
+      "properties": {
+        "x": {"type": "number"},
+        "y": {"type": "number"},
+        "z": {"type": "number"}
+      },
+      "description": "3D vector direction"
+    }
+  },
+  "examples": [
+    {
+      "plan_id": "simple_plate_001",
+      "metadata": {
+        "created_at": "2024-01-15T10:30:00Z",
+        "natural_language_prompt": "Create a 100x50mm plate that's 5mm thick",
+        "estimated_duration_seconds": 15,
+        "confidence_score": 0.95,
+        "units": "mm"
+      },
+      "operations": [
+        {
+          "op_id": "op_1",
+          "op": "create_sketch",
+          "params": {
+            "plane": "XY",
+            "name": "base_sketch"
+          }
+        },
+        {
+          "op_id": "op_2", 
+          "op": "draw_rectangle",
+          "params": {
+            "center_point": {"x": 0, "y": 0, "z": 0},
+            "width": {"value": 100, "unit": "mm"},
+            "height": {"value": 50, "unit": "mm"}
+          },
+          "target_ref": "base_sketch",
+          "dependencies": ["op_1"]
+        },
+        {
+          "op_id": "op_3",
+          "op": "extrude",
+          "params": {
+            "profile": "base_sketch",
+            "distance": {"value": 5, "unit": "mm"},
+            "direction": "positive",
+            "operation": "new_body"
+          },
+          "dependencies": ["op_2"]
+        }
+      ]
+    },
+    {
+      "plan_id": "hole_pattern_002", 
+      "metadata": {
+        "created_at": "2024-01-15T11:15:00Z",
+        "natural_language_prompt": "Add 4 holes in corners of this plate, 5mm diameter, 10mm from edges",
+        "estimated_duration_seconds": 25,
+        "confidence_score": 0.88,
+        "units": "mm",
+        "requires_user_input": false
+      },
+      "operations": [
+        {
+          "op_id": "op_1",
+          "op": "create_hole",
+          "params": {
+            "center_point": {"x": 40, "y": 20, "z": 0},
+            "diameter": {"value": 5, "unit": "mm"},
+            "depth": "through_all",
+            "hole_type": "simple"
+          },
+          "target_ref": "face_top"
+        },
+        {
+          "op_id": "op_2",
+          "op": "pattern_rectangular",
+          "params": {
+            "feature_to_pattern": "op_1",
+            "direction_1": {"x": 1, "y": 0, "z": 0},
+            "direction_2": {"x": 0, "y": 1, "z": 0},
+            "distance_1": {"value": 80, "unit": "mm"},
+            "distance_2": {"value": 40, "unit": "mm"},
+            "count_1": 2,
+            "count_2": 2
+          },
+          "dependencies": ["op_1"]
+        }
+      ]
+    }
+  ]
+}

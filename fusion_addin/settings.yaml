@@ -1,0 +1,301 @@
+# Fusion 360 Natural-Language CAD Co-Pilot Configuration
+# 
+# This file controls all aspects of the Co-Pilot's behavior.
+# Modify these settings to customize your experience.
+#
+# ENVIRONMENT VARIABLES:
+# Many settings can be overridden by environment variables for secure deployment.
+# See .env.template for a complete list of supported environment variables.
+# Environment variables take precedence over values in this file.
+#
+# PRODUCTION DEPLOYMENT:
+# 1. Copy .env.template to .env
+# 2. Fill in your API keys and configuration
+# 3. Set COPILOT_ENVIRONMENT=prod
+# 4. Never commit .env files to version control!
+
+# === LLM Configuration ===
+llm:
+  # Primary endpoint for LLM requests
+  # Development: http://localhost:8080/llm (uses stub server)
+  # Production OpenAI: https://api.openai.com/v1/chat/completions
+  # Production Anthropic: https://api.anthropic.com/v1/messages
+  # Azure OpenAI: https://your-resource.openai.azure.com/openai/deployments/your-model/chat/completions?api-version=2024-02-01
+  endpoint: "http://localhost:8080/llm"
+  
+  # LLM provider (openai, anthropic, azure_openai) - can be overridden by COPILOT_LLM_PROVIDER
+  provider: "openai"
+  
+  # Use local stub server (true) or external LLM service (false)
+  local_mode: true
+  
+  # API key for external LLM services (leave empty for local mode)
+  # Recommended: Set via environment variables (OPENAI_API_KEY, ANTHROPIC_API_KEY, AZURE_OPENAI_API_KEY)
+  api_key: ""
+  
+  # Model to use for external services - can be overridden by COPILOT_LLM_MODEL
+  # OpenAI: gpt-4, gpt-4-turbo, gpt-3.5-turbo
+  # Anthropic: claude-3-5-sonnet-20241022, claude-3-haiku-20240307
+  # Azure OpenAI: Your deployment name
+  model: "gpt-4"
+  
+  # Request timeout in seconds - can be overridden by COPILOT_REQUEST_TIMEOUT
+  timeout: 30
+  
+  # Maximum retries for failed requests - can be overridden by COPILOT_MAX_RETRIES
+  max_retries: 3
+  
+  # Temperature for LLM creativity (0.0 = deterministic, 1.0 = creative)
+  # Can be overridden by COPILOT_LLM_TEMPERATURE
+  temperature: 0.2
+  
+  # Maximum tokens for LLM response - can be overridden by COPILOT_LLM_MAX_TOKENS
+  max_tokens: 2000
+  
+  # Retry delay multiplier for exponential backoff (seconds)
+  retry_delay: 1.0
+
+# === Processing Configuration ===
+processing:
+  # Default units for new plans (mm, cm, m, in, ft)
+  units_default: "mm"
+  
+  # Maximum number of operations per plan (safety limit)
+  max_operations_per_plan: 50
+  
+  # Maximum plan execution time in seconds
+  max_execution_time: 300
+  
+  # Enable sandbox preview before applying operations
+  enable_preview: true
+  
+  # Automatically save action logs after each successful operation
+  auto_save_logs: true
+
+# === Machine Profile ===
+# Define manufacturing constraints and capabilities
+machine_profile:
+  # Minimum tool diameter in mm (affects hole sizes, slot widths)
+  min_tool_diameter: 0.5
+  
+  # Maximum cutting depth in mm
+  max_cut_depth: 100
+  
+  # Minimum wall thickness in mm (for shell operations)
+  min_wall_thickness: 0.8
+  
+  # Maximum feature size in mm (safety limit)
+  max_feature_size: 1000
+  
+  # Supported materials (affects validation rules)
+  supported_materials:
+    - "aluminum"
+    - "steel"
+    - "plastic"
+    - "wood"
+    - "brass"
+  
+  # Manufacturing tolerances
+  tolerances:
+    general: 0.1      # mm
+    precision: 0.05   # mm
+    rough: 0.2        # mm
+
+# === UI Configuration ===
+ui:
+  # Panel docking preference (left, right, bottom, floating)
+  default_dock_position: "right"
+  
+  # Show operation details in action log
+  show_detailed_log: true
+  
+  # Automatically scroll to latest log entry
+  auto_scroll_log: true
+  
+  # Theme preference (light, dark, auto)
+  theme: "auto"
+  
+  # Font size for code/technical text
+  code_font_size: 12
+  
+  # Maximum number of log entries to display
+  max_log_entries: 100
+
+# === Validation Configuration ===
+validation:
+  # Strict mode: fail on any validation warning
+  strict_mode: false
+  
+  # Check for geometric impossibilities
+  geometry_validation: true
+  
+  # Validate against machine profile constraints
+  machine_validation: true
+  
+  # Check for unit consistency
+  unit_validation: true
+  
+  # Validate feature references exist
+  reference_validation: true
+  
+  # Custom validation rules (advanced users)
+  custom_rules:
+    # Example: Minimum hole spacing
+    min_hole_spacing: 5.0  # mm
+    
+    # Example: Maximum fillet radius as fraction of feature size
+    max_fillet_ratio: 0.4
+
+# === Logging Configuration ===
+logging:
+  # Enable debug logging (creates detailed log files)
+  debug: false
+  
+  # Log file location (relative to add-in directory)
+  log_file: "logs/copilot_debug.log"
+  
+  # Maximum log file size in MB
+  max_log_size: 10
+  
+  # Number of log files to keep
+  log_rotation_count: 5
+  
+  # Log levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "INFO"
+
+# === Action Log Configuration ===
+action_log:
+  # Directory to save action logs (relative to add-in directory)
+  log_directory: "logs/actions"
+  
+  # Automatically create timestamped log files
+  auto_timestamp: true
+  
+  # Include screenshot/preview images in logs
+  include_previews: false
+  
+  # Compress old log files
+  compress_old_logs: true
+  
+  # Maximum age of logs to keep (days)
+  max_log_age_days: 90
+  
+  # Export formats to support
+  export_formats:
+    - "json"
+    - "csv"
+    - "txt"
+
+# === Security Configuration ===
+security:
+  # Allow network requests (required for external LLM)
+  allow_network: true
+  
+  # Allowed domains for network requests
+  allowed_domains:
+    - "localhost"
+    - "127.0.0.1"
+    - "api.openai.com"
+    - "api.anthropic.com"
+  
+  # Encrypt sensitive data in logs
+  encrypt_logs: false
+  
+  # Require confirmation for destructive operations
+  confirm_destructive: true
+  
+  # Maximum prompt length (characters)
+  max_prompt_length: 2000
+
+# === Advanced Configuration ===
+advanced:
+  # Enable experimental features
+  experimental_features: false
+  
+  # Custom prompt templates directory
+  custom_prompts_dir: "prompts/custom"
+  
+  # Plugin extensions directory
+  extensions_dir: "extensions"
+  
+  # Performance monitoring
+  enable_performance_monitoring: false
+  
+  # Automatic error reporting (anonymized)
+  auto_error_reporting: false
+  
+  # Development mode (enables additional debugging)
+  development_mode: true
+
+# === Prompt Engineering ===
+prompts:
+  # System message for LLM context
+  system_message: |
+    You are a Fusion 360 CAD expert assistant. Convert natural language descriptions 
+    into precise, structured JSON plans following the provided schema. Focus on:
+    1. Geometric accuracy and dimensional precision
+    2. Logical operation sequencing with proper dependencies
+    3. Manufacturing feasibility and safety
+    4. Clear parameter specification with appropriate units
+    
+    If the user's request is ambiguous, ask specific clarifying questions rather 
+    than making assumptions. Always validate that your generated plan is 
+    geometrically sound and executable.
+  
+  # Temperature for LLM creativity (0.0 = deterministic, 1.0 = creative)
+  temperature: 0.2
+  
+  # Maximum tokens for LLM response
+  max_tokens: 2000
+  
+  # Include examples in prompt context
+  include_examples: true
+
+# === User Preferences ===
+user:
+  # Default author name for action logs
+  author_name: "User"
+  
+  # Preferred measurement units
+  preferred_units: "mm"
+  
+  # Skill level (affects UI complexity and validation strictness)
+  # Options: beginner, intermediate, advanced, expert
+  skill_level: "intermediate"
+  
+  # Show tips and hints
+  show_hints: true
+  
+  # Confirm before applying operations
+  confirm_before_apply: true
+
+# === Performance Configuration ===
+performance:
+  # Enable operation batching for better performance
+  batch_operations: true
+  
+  # Maximum operations per batch
+  max_batch_size: 10
+  
+  # Parallel execution for independent operations
+  parallel_execution: false
+  
+  # Cache parsed plans for repeated use
+  cache_plans: true
+  
+  # Maximum cached plans
+  max_cached_plans: 50
+
+# === Integration Configuration ===
+integration:
+  # Enable timeline integration (map operations to Fusion timeline)
+  timeline_integration: true
+  
+  # Sync with Fusion parameters
+  parameter_sync: true
+  
+  # Export compatibility with other CAD systems
+  export_compatibility: true
+  
+  # Version control integration
+  version_control: false

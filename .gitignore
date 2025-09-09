@@ -1,0 +1,53 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+__MACOSX/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+.venv/
+venv/
+.env
+.env.*
+*.env
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Node/JS (if any palette assets added later)
+node_modules/
+*.log
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+
+# Fusion logs and build artifacts
+fusion_addin/logs/
+*.bak
+*.tmp
+
+# Secrets
+settings.local.yaml
+*.key
+*.pem
+
+# Archives
+*.zip
+*.tar
+*.gz
+
+# Tests cache
+.pytest_cache/
+.coverage*
+
+# Local data
+llm_stub/__pycache__/

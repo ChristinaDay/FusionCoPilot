@@ -1,0 +1,498 @@
+{
+  "plans": {
+    "simple_plate": {
+      "plan_id": "simple_plate_001",
+      "prompt_pattern": "rectangular plate",
+      "keywords": ["plate", "rectangle", "rectangular", "flat"],
+      "description": "Simple rectangular plate extrusion",
+      "difficulty": "beginner",
+      "metadata": {
+        "estimated_duration_seconds": 15,
+        "confidence_score": 0.95,
+        "units": "mm"
+      },
+      "operations": [
+        {
+          "op_id": "op_1",
+          "op": "create_sketch",
+          "params": {
+            "plane": "XY",
+            "name": "base_sketch"
+          }
+        },
+        {
+          "op_id": "op_2",
+          "op": "draw_rectangle",
+          "params": {
+            "center_point": {"x": 0, "y": 0, "z": 0},
+            "width": {"value": 100, "unit": "mm"},
+            "height": {"value": 50, "unit": "mm"}
+          },
+          "target_ref": "base_sketch",
+          "dependencies": ["op_1"]
+        },
+        {
+          "op_id": "op_3",
+          "op": "extrude",
+          "params": {
+            "profile": "base_sketch",
+            "distance": {"value": 5, "unit": "mm"},
+            "direction": "positive",
+            "operation": "new_body"
+          },
+          "dependencies": ["op_2"]
+        }
+      ]
+    },
+    "simple_cube": {
+      "plan_id": "simple_cube_001",
+      "prompt_pattern": "cube",
+      "keywords": ["cube", "box", "square"],
+      "description": "Basic cube creation",
+      "difficulty": "beginner",
+      "metadata": {
+        "estimated_duration_seconds": 12,
+        "confidence_score": 0.92,
+        "units": "mm"
+      },
+      "operations": [
+        {
+          "op_id": "op_1",
+          "op": "create_sketch",
+          "params": {
+            "plane": "XY",
+            "name": "cube_base"
+          }
+        },
+        {
+          "op_id": "op_2",
+          "op": "draw_rectangle",
+          "params": {
+            "center_point": {"x": 0, "y": 0, "z": 0},
+            "width": {"value": 25, "unit": "mm"},
+            "height": {"value": 25, "unit": "mm"}
+          },
+          "target_ref": "cube_base",
+          "dependencies": ["op_1"]
+        },
+        {
+          "op_id": "op_3",
+          "op": "extrude",
+          "params": {
+            "profile": "cube_base",
+            "distance": {"value": 25, "unit": "mm"},
+            "direction": "positive",
+            "operation": "new_body"
+          },
+          "dependencies": ["op_2"]
+        }
+      ]
+    },
+    "cylinder": {
+      "plan_id": "cylinder_001",
+      "prompt_pattern": "cylinder",
+      "keywords": ["cylinder", "round", "circular", "tube"],
+      "description": "Cylindrical extrusion from circle",
+      "difficulty": "beginner",
+      "metadata": {
+        "estimated_duration_seconds": 18,
+        "confidence_score": 0.90,
+        "units": "mm"
+      },
+      "operations": [
+        {
+          "op_id": "op_1",
+          "op": "create_sketch",
+          "params": {
+            "plane": "XY",
+            "name": "circle_sketch"
+          }
+        },
+        {
+          "op_id": "op_2",
+          "op": "draw_circle",
+          "params": {
+            "center_point": {"x": 0, "y": 0, "z": 0},
+            "diameter": {"value": 20, "unit": "mm"}
+          },
+          "target_ref": "circle_sketch",
+          "dependencies": ["op_1"]
+        },
+        {
+          "op_id": "op_3",
+          "op": "extrude",
+          "params": {
+            "profile": "circle_sketch",
+            "distance": {"value": 30, "unit": "mm"},
+            "direction": "positive",
+            "operation": "new_body"
+          },
+          "dependencies": ["op_2"]
+        }
+      ]
+    },
+    "center_hole": {
+      "plan_id": "center_hole_001",
+      "prompt_pattern": "hole in the center",
+      "keywords": ["hole", "center", "middle", "drill"],
+      "description": "Simple hole in center of face",
+      "difficulty": "intermediate",
+      "metadata": {
+        "estimated_duration_seconds": 10,
+        "confidence_score": 0.88,
+        "units": "mm"
+      },
+      "operations": [
+        {
+          "op_id": "op_1",
+          "op": "create_hole",
+          "params": {
+            "center_point": {"x": 0, "y": 0, "z": 0},
+            "diameter": {"value": 6, "unit": "mm"},
+            "depth": "through_all",
+            "hole_type": "simple"
+          },
+          "target_ref": "face_top"
+        }
+      ]
+    },
+    "corner_holes": {
+      "plan_id": "corner_holes_001",
+      "prompt_pattern": "corner holes",
+      "keywords": ["corner", "holes", "mounting", "four holes"],
+      "description": "Four holes in corners with pattern",
+      "difficulty": "intermediate",
+      "metadata": {
+        "estimated_duration_seconds": 25,
+        "confidence_score": 0.85,
+        "units": "mm"
+      },
+      "operations": [
+        {
+          "op_id": "op_1",
+          "op": "create_hole",
+          "params": {
+            "center_point": {"x": 40, "y": 20, "z": 0},
+            "diameter": {"value": 8, "unit": "mm"},
+            "depth": "through_all",
+            "hole_type": "simple"
+          },
+          "target_ref": "face_top"
+        },
+        {
+          "op_id": "op_2",
+          "op": "pattern_rectangular",
+          "params": {
+            "feature_to_pattern": "op_1",
+            "direction_1": {"x": 1, "y": 0, "z": 0},
+            "direction_2": {"x": 0, "y": 1, "z": 0},
+            "distance_1": {"value": 80, "unit": "mm"},
+            "distance_2": {"value": 40, "unit": "mm"},
+            "count_1": 2,
+            "count_2": 2
+          },
+          "dependencies": ["op_1"]
+        }
+      ]
+    },
+    "fillet_edges": {
+      "plan_id": "fillet_all_001",
+      "prompt_pattern": "fillet all edges",
+      "keywords": ["fillet", "round", "edges", "smooth"],
+      "description": "Apply fillet to all edges",
+      "difficulty": "intermediate",
+      "metadata": {
+        "estimated_duration_seconds": 20,
+        "confidence_score": 0.82,
+        "units": "mm"
+      },
+      "operations": [
+        {
+          "op_id": "op_1",
+          "op": "fillet",
+          "params": {
+            "radius": {"value": 3, "unit": "mm"},
+            "edges": "all_edges",
+            "fillet_type": "constant_radius"
+          }
+        }
+      ]
+    },
+    "linear_pattern": {
+      "plan_id": "linear_pattern_001",
+      "prompt_pattern": "linear pattern",
+      "keywords": ["linear", "pattern", "array", "repeat", "spaced"],
+      "description": "Linear pattern of features",
+      "difficulty": "intermediate",
+      "metadata": {
+        "estimated_duration_seconds": 22,
+        "confidence_score": 0.80,
+        "units": "mm"
+      },
+      "operations": [
+        {
+          "op_id": "op_1",
+          "op": "create_hole",
+          "params": {
+            "center_point": {"x": 0, "y": 0, "z": 0},
+            "diameter": {"value": 5, "unit": "mm"},
+            "depth": "through_all",
+            "hole_type": "simple"
+          },
+          "target_ref": "face_top"
+        },
+        {
+          "op_id": "op_2",
+          "op": "pattern_linear",
+          "params": {
+            "feature_to_pattern": "op_1",
+            "direction": {"x": 1, "y": 0, "z": 0},
+            "distance": {"value": 20, "unit": "mm"},
+            "count": 5
+          },
+          "dependencies": ["op_1"]
+        }
+      ]
+    },
+    "circular_pattern": {
+      "plan_id": "circular_pattern_001",
+      "prompt_pattern": "circular pattern",
+      "keywords": ["circular", "pattern", "around", "radial", "polar"],
+      "description": "Circular pattern around center",
+      "difficulty": "intermediate",
+      "metadata": {
+        "estimated_duration_seconds": 28,
+        "confidence_score": 0.78,
+        "units": "mm"
+      },
+      "operations": [
+        {
+          "op_id": "op_1",
+          "op": "create_hole",
+          "params": {
+            "center_point": {"x": 30, "y": 0, "z": 0},
+            "diameter": {"value": 4, "unit": "mm"},
+            "depth": "through_all",
+            "hole_type": "simple"
+          },
+          "target_ref": "face_top"
+        },
+        {
+          "op_id": "op_2",
+          "op": "pattern_circular",
+          "params": {
+            "feature_to_pattern": "op_1",
+            "center_point": {"x": 0, "y": 0, "z": 0},
+            "axis": {"x": 0, "y": 0, "z": 1},
+            "count": 8,
+            "angle": {"value": 360, "unit": "deg"}
+          },
+          "dependencies": ["op_1"]
+        }
+      ]
+    },
+    "shell_part": {
+      "plan_id": "shell_001",
+      "prompt_pattern": "shell",
+      "keywords": ["shell", "hollow", "wall thickness", "thin"],
+      "description": "Shell operation with wall thickness",
+      "difficulty": "advanced",
+      "metadata": {
+        "estimated_duration_seconds": 35,
+        "confidence_score": 0.75,
+        "units": "mm"
+      },
+      "operations": [
+        {
+          "op_id": "op_1",
+          "op": "shell",
+          "params": {
+            "thickness": {"value": 2, "unit": "mm"},
+            "faces_to_remove": ["face_top"],
+            "shell_type": "outward"
+          }
+        }
+      ]
+    },
+    "chamfer_edges": {
+      "plan_id": "chamfer_001",
+      "prompt_pattern": "chamfer",
+      "keywords": ["chamfer", "bevel", "angled", "cut corner"],
+      "description": "Chamfer edges with specified distance",
+      "difficulty": "intermediate",
+      "metadata": {
+        "estimated_duration_seconds": 18,
+        "confidence_score": 0.83,
+        "units": "mm"
+      },
+      "operations": [
+        {
+          "op_id": "op_1",
+          "op": "chamfer",
+          "params": {
+            "distance": {"value": 2, "unit": "mm"},
+            "edges": "selected_edges",
+            "chamfer_type": "equal_distance"
+          }
+        }
+      ]
+    },
+    "hexagonal_prism": {
+      "plan_id": "hexagon_001",
+      "prompt_pattern": "hexagon",
+      "keywords": ["hexagon", "hexagonal", "six sided", "prism"],
+      "description": "Hexagonal prism creation",
+      "difficulty": "intermediate",
+      "metadata": {
+        "estimated_duration_seconds": 25,
+        "confidence_score": 0.77,
+        "units": "mm"
+      },
+      "operations": [
+        {
+          "op_id": "op_1",
+          "op": "create_sketch",
+          "params": {
+            "plane": "XY",
+            "name": "hex_sketch"
+          }
+        },
+        {
+          "op_id": "op_2",
+          "op": "draw_polygon",
+          "params": {
+            "center_point": {"x": 0, "y": 0, "z": 0},
+            "sides": 6,
+            "circumscribed_radius": {"value": 15, "unit": "mm"}
+          },
+          "target_ref": "hex_sketch",
+          "dependencies": ["op_1"]
+        },
+        {
+          "op_id": "op_3",
+          "op": "extrude",
+          "params": {
+            "profile": "hex_sketch",
+            "distance": {"value": 15, "unit": "mm"},
+            "direction": "positive",
+            "operation": "new_body"
+          },
+          "dependencies": ["op_2"]
+        }
+      ]
+    },
+    "mounting_plate": {
+      "plan_id": "mounting_plate_001",
+      "prompt_pattern": "mounting plate",
+      "keywords": ["mounting", "bracket", "plate", "cutout", "complex"],
+      "description": "Complex mounting plate with cutout and holes",
+      "difficulty": "advanced",
+      "metadata": {
+        "estimated_duration_seconds": 45,
+        "confidence_score": 0.70,
+        "units": "mm"
+      },
+      "operations": [
+        {
+          "op_id": "op_1",
+          "op": "create_sketch",
+          "params": {
+            "plane": "XY",
+            "name": "base_plate"
+          }
+        },
+        {
+          "op_id": "op_2",
+          "op": "draw_rectangle",
+          "params": {
+            "center_point": {"x": 0, "y": 0, "z": 0},
+            "width": {"value": 80, "unit": "mm"},
+            "height": {"value": 60, "unit": "mm"}
+          },
+          "target_ref": "base_plate",
+          "dependencies": ["op_1"]
+        },
+        {
+          "op_id": "op_3",
+          "op": "extrude",
+          "params": {
+            "profile": "base_plate",
+            "distance": {"value": 8, "unit": "mm"},
+            "direction": "positive",
+            "operation": "new_body"
+          },
+          "dependencies": ["op_2"]
+        },
+        {
+          "op_id": "op_4",
+          "op": "create_sketch",
+          "params": {
+            "plane": "face_top",
+            "name": "cutout_sketch"
+          },
+          "dependencies": ["op_3"]
+        },
+        {
+          "op_id": "op_5",
+          "op": "draw_rectangle",
+          "params": {
+            "center_point": {"x": 0, "y": 0, "z": 0},
+            "width": {"value": 20, "unit": "mm"},
+            "height": {"value": 30, "unit": "mm"}
+          },
+          "target_ref": "cutout_sketch",
+          "dependencies": ["op_4"]
+        },
+        {
+          "op_id": "op_6",
+          "op": "cut",
+          "params": {
+            "profile": "cutout_sketch",
+            "distance": {"value": 8, "unit": "mm"},
+            "direction": "negative",
+            "operation": "cut"
+          },
+          "dependencies": ["op_5"]
+        },
+        {
+          "op_id": "op_7",
+          "op": "create_hole",
+          "params": {
+            "center_point": {"x": 30, "y": 20, "z": 0},
+            "diameter": {"value": 6, "unit": "mm"},
+            "depth": "through_all",
+            "hole_type": "simple"
+          },
+          "target_ref": "face_top",
+          "dependencies": ["op_6"]
+        },
+        {
+          "op_id": "op_8",
+          "op": "pattern_rectangular",
+          "params": {
+            "feature_to_pattern": "op_7",
+            "direction_1": {"x": 1, "y": 0, "z": 0},
+            "direction_2": {"x": 0, "y": 1, "z": 0},
+            "distance_1": {"value": 60, "unit": "mm"},
+            "distance_2": {"value": 40, "unit": "mm"},
+            "count_1": 2,
+            "count_2": 2
+          },
+          "dependencies": ["op_7"]
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "created": "2024-01-15T10:00:00Z",
+    "description": "Canned plan responses for Fusion 360 Co-Pilot LLM stub server",
+    "total_plans": 12,
+    "coverage": {
+      "basic_shapes": ["cube", "cylinder", "rectangular_plate"],
+      "features": ["holes", "patterns", "fillets", "chamfers"],
+      "operations": ["extrude", "cut", "shell", "pattern"],
+      "complexity_levels": ["beginner", "intermediate", "advanced"]
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "autodeskProduct": "Fusion",
+  "type": "addin",
+  "id": "fusion.copilot.naturalcad", 
+  "author": "Fusion CoPilot Team",
+  "description": {
+    "": "Natural Language to CAD Co-Pilot"
+  },
+  "version": "0.1.0",
+  "runOnStartup": false,
+  "supportedOS": "windows|mac",
+  "editEnabled": true,
+  "iconFilename": "icon.png"
+}

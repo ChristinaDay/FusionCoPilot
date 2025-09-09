@@ -1,0 +1,531 @@
+{
+  "meta": {
+    "version": "1.0.0-beta",
+    "created": "2024-09-09",
+    "description": "Structured test scenarios for Fusion 360 Co-Pilot beta testing",
+    "usage": "Import these scenarios into your testing workflow to ensure comprehensive coverage"
+  },
+  "categories": {
+    "basic_geometry": {
+      "description": "Fundamental shape creation and basic operations",
+      "difficulty": "beginner",
+      "estimated_time": "30 minutes",
+      "scenarios": [
+        {
+          "id": "BG001",
+          "name": "Simple Rectangular Plate",
+          "prompt": "Create a rectangular plate 100x50x5mm",
+          "expected_operations": ["create_sketch", "draw_rectangle", "extrude"],
+          "expected_duration": "15 seconds",
+          "validation": {
+            "dimensions": {"length": 100, "width": 50, "height": 5, "unit": "mm"},
+            "operation_count": 3,
+            "feature_tree": "Should show sketch and extrude feature"
+          },
+          "success_criteria": [
+            "Geometry created with correct dimensions",
+            "Parametric model with editable dimensions",
+            "Clean feature tree structure"
+          ]
+        },
+        {
+          "id": "BG002", 
+          "name": "Cylinder Creation",
+          "prompt": "Make a cylinder 30mm diameter, 40mm height",
+          "expected_operations": ["create_sketch", "draw_circle", "extrude"],
+          "expected_duration": "15 seconds",
+          "validation": {
+            "dimensions": {"diameter": 30, "height": 40, "unit": "mm"},
+            "operation_count": 3,
+            "geometry_type": "cylinder"
+          },
+          "success_criteria": [
+            "Circular cross-section with correct diameter",
+            "Correct height dimension",
+            "Centered on origin"
+          ]
+        },
+        {
+          "id": "BG003",
+          "name": "Hexagonal Extrusion", 
+          "prompt": "Draw a hexagon 25mm across flats, extrude 8mm",
+          "expected_operations": ["create_sketch", "draw_polygon", "extrude"],
+          "expected_duration": "20 seconds",
+          "validation": {
+            "dimensions": {"across_flats": 25, "height": 8, "unit": "mm"},
+            "sides": 6,
+            "operation_count": 3
+          },
+          "success_criteria": [
+            "Regular hexagon with 6 equal sides",
+            "Correct across-flats dimension",
+            "Proper extrusion height"
+          ]
+        },
+        {
+          "id": "BG004",
+          "name": "Sphere Creation",
+          "prompt": "Create a sphere with 20mm radius",
+          "expected_operations": ["create_sketch", "draw_circle", "revolve"],
+          "expected_duration": "20 seconds", 
+          "validation": {
+            "dimensions": {"radius": 20, "unit": "mm"},
+            "geometry_type": "sphere",
+            "operation_count": 3
+          },
+          "success_criteria": [
+            "Perfect spherical geometry",
+            "Correct radius measurement",
+            "Single solid body"
+          ]
+        }
+      ]
+    },
+    "features_modifications": {
+      "description": "Adding features, holes, fillets, and modifications to existing geometry",
+      "difficulty": "intermediate",
+      "estimated_time": "45 minutes",
+      "scenarios": [
+        {
+          "id": "FM001",
+          "name": "Simple Holes",
+          "prerequisite": "Start with rectangular plate 100x50x10mm",
+          "prompt": "Add 4 holes 6mm diameter, positioned 15mm from each edge",
+          "expected_operations": ["create_sketch", "draw_circle", "pattern_linear", "cut"],
+          "expected_duration": "25 seconds",
+          "validation": {
+            "hole_diameter": 6,
+            "hole_count": 4,
+            "edge_distance": 15,
+            "unit": "mm"
+          },
+          "success_criteria": [
+            "4 holes with correct diameter",
+            "Proper spacing from edges",  
+            "Holes go completely through part"
+          ]
+        },
+        {
+          "id": "FM002",
+          "name": "Edge Fillets",
+          "prerequisite": "Start with rectangular plate with holes",
+          "prompt": "Add 2mm fillets to all external edges",
+          "expected_operations": ["fillet"],
+          "expected_duration": "15 seconds",
+          "validation": {
+            "fillet_radius": 2,
+            "unit": "mm",
+            "edge_count": "all external edges"
+          },
+          "success_criteria": [
+            "All external edges filleted",
+            "Consistent 2mm radius",
+            "Smooth transitions"
+          ]
+        },
+        {
+          "id": "FM003",
+          "name": "Shell Operation",
+          "prerequisite": "Start with solid block 50x50x30mm",
+          "prompt": "Shell this part with 3mm wall thickness, remove top face",
+          "expected_operations": ["shell"],
+          "expected_duration": "20 seconds",
+          "validation": {
+            "wall_thickness": 3,
+            "unit": "mm",
+            "removed_faces": "top face"
+          },
+          "success_criteria": [
+            "Hollow interior with 3mm walls",
+            "Top face removed for access",
+            "Uniform wall thickness"
+          ]
+        },
+        {
+          "id": "FM004",
+          "name": "Mirror Feature",
+          "prerequisite": "Start with L-shaped bracket",
+          "prompt": "Mirror this bracket across the YZ plane to create symmetrical part",
+          "expected_operations": ["mirror"],
+          "expected_duration": "15 seconds",
+          "validation": {
+            "mirror_plane": "YZ",
+            "symmetry": "perfect bilateral symmetry"
+          },
+          "success_criteria": [
+            "Symmetrical geometry across YZ plane",
+            "Original and mirrored features visible",
+            "Single solid body result"
+          ]
+        }
+      ]
+    },
+    "complex_assemblies": {
+      "description": "Multi-component parts, assemblies, and advanced operations",
+      "difficulty": "advanced", 
+      "estimated_time": "60 minutes",
+      "scenarios": [
+        {
+          "id": "CA001",
+          "name": "Bracket Assembly",
+          "prompt": "Create a mounting bracket assembly with 100x50x10mm base plate and 50x80x5mm vertical mounting arm",
+          "expected_operations": ["create_sketch", "draw_rectangle", "extrude", "create_sketch", "draw_rectangle", "extrude", "create_joint"],
+          "expected_duration": "45 seconds",
+          "validation": {
+            "component_count": 2,
+            "base_dimensions": [100, 50, 10],
+            "arm_dimensions": [50, 80, 5],
+            "unit": "mm"
+          },
+          "success_criteria": [
+            "Two distinct components created",
+            "Proper assembly relationship",
+            "Correct dimensions for each part"
+          ]
+        },
+        {
+          "id": "CA002",
+          "name": "Bolt Pattern",
+          "prerequisite": "Start with bracket assembly",
+          "prompt": "Add bolt holes 8mm diameter in circular pattern, 6 holes on 60mm bolt circle diameter",
+          "expected_operations": ["create_sketch", "draw_circle", "pattern_circular", "cut"],
+          "expected_duration": "30 seconds",
+          "validation": {
+            "hole_diameter": 8,
+            "hole_count": 6,
+            "bolt_circle_diameter": 60,
+            "pattern_type": "circular",
+            "unit": "mm"
+          },
+          "success_criteria": [
+            "6 holes evenly spaced in circle",
+            "Correct bolt circle diameter",
+            "Holes through both components"
+          ]
+        },
+        {
+          "id": "CA003",
+          "name": "Gear Assembly",
+          "prompt": "Design a simple gear assembly with main gear 50mm diameter and pinion gear 25mm diameter, properly meshed",
+          "expected_operations": ["create_sketch", "draw_circle", "extrude", "create_sketch", "draw_circle", "extrude", "create_joint"],
+          "expected_duration": "60 seconds",
+          "validation": {
+            "main_gear_diameter": 50,
+            "pinion_gear_diameter": 25,
+            "gear_ratio": 2.0,
+            "unit": "mm"
+          },
+          "success_criteria": [
+            "Two gears with correct diameters",
+            "Proper gear spacing and mesh",
+            "Rotational joint between gears"
+          ]
+        }
+      ]
+    },
+    "manufacturing_intent": {
+      "description": "Testing understanding of manufacturing constraints and design for manufacturing",
+      "difficulty": "expert",
+      "estimated_time": "45 minutes", 
+      "scenarios": [
+        {
+          "id": "MI001",
+          "name": "3D Printing Design",
+          "prompt": "Design a phone stand optimized for 3D printing with 0.2mm layer height, including supports",
+          "expected_operations": ["create_sketch", "draw_rectangle", "extrude", "create_sketch", "draw_rectangle", "cut", "fillet"],
+          "expected_duration": "40 seconds",
+          "validation": {
+            "layer_height": 0.2,
+            "overhang_angles": "<45 degrees",
+            "support_structures": "minimal",
+            "unit": "mm"
+          },
+          "success_criteria": [
+            "Geometry suitable for 3D printing",
+            "Minimal overhangs requiring supports",
+            "Appropriate wall thicknesses"
+          ]
+        },
+        {
+          "id": "MI002",
+          "name": "Machining Access",
+          "prompt": "Create a housing with internal cavity accessible for CNC machining with 10mm end mill",
+          "expected_operations": ["create_sketch", "draw_rectangle", "extrude", "shell", "create_sketch", "draw_rectangle", "cut"],
+          "expected_duration": "35 seconds",
+          "validation": {
+            "tool_diameter": 10,
+            "corner_radii": ">=5mm",
+            "access_openings": "sufficient for tooling",
+            "unit": "mm"
+          },
+          "success_criteria": [
+            "All internal corners have appropriate radii",
+            "Sufficient access for machining operations",
+            "No trapped volumes"
+          ]
+        },
+        {
+          "id": "MI003",
+          "name": "Injection Molding Design", 
+          "prompt": "Design a plastic housing with 2-degree draft angles and uniform 2mm wall thickness",
+          "expected_operations": ["create_sketch", "draw_rectangle", "extrude", "shell", "add_draft"],
+          "expected_duration": "30 seconds",
+          "validation": {
+            "draft_angle": 2,
+            "wall_thickness": 2,
+            "parting_line": "clearly defined",
+            "unit": "mm"
+          },
+          "success_criteria": [
+            "Consistent 2mm wall thickness",
+            "2-degree draft on all vertical faces",
+            "No undercuts preventing mold release"
+          ]
+        }
+      ]
+    },
+    "error_handling": {
+      "description": "Testing system response to invalid, ambiguous, or impossible requests",
+      "difficulty": "all levels",
+      "estimated_time": "30 minutes",
+      "scenarios": [
+        {
+          "id": "EH001",
+          "name": "Ambiguous Request",
+          "prompt": "Make it bigger",
+          "expected_behavior": "Request clarification with specific questions",
+          "expected_duration": "10 seconds",
+          "validation": {
+            "error_type": "ambiguous_request",
+            "clarification_questions": ">=2",
+            "helpful_suggestions": "provided"
+          },
+          "success_criteria": [
+            "Clear error message explaining ambiguity",
+            "Specific clarifying questions asked",
+            "Suggestions for better prompt structure"
+          ]
+        },
+        {
+          "id": "EH002",
+          "name": "Impossible Geometry",
+          "prompt": "Create a cube with 5 sides",
+          "expected_behavior": "Explain geometric impossibility and suggest alternatives",
+          "expected_duration": "10 seconds",
+          "validation": {
+            "error_type": "geometric_impossibility",
+            "explanation": "clear and educational",
+            "alternatives": "provided"
+          },
+          "success_criteria": [
+            "Explains why request is impossible",
+            "Offers alternative valid geometries", 
+            "Educational tone, not just rejection"
+          ]
+        },
+        {
+          "id": "EH003",
+          "name": "Invalid Dimensions",
+          "prompt": "Create a plate -50mm x 30mm x 10mm",
+          "expected_behavior": "Identify negative dimension and request correction",
+          "expected_duration": "10 seconds",
+          "validation": {
+            "error_type": "invalid_dimension",
+            "specific_issue": "negative dimension identified",
+            "correction_suggestion": "provided"
+          },
+          "success_criteria": [
+            "Identifies the negative dimension problem",
+            "Suggests reasonable positive dimension",
+            "Maintains other valid dimensions"
+          ]
+        },
+        {
+          "id": "EH004",
+          "name": "Missing References",
+          "prompt": "Add holes to the previous part",
+          "expected_behavior": "Request specific part reference when no previous part exists",
+          "expected_duration": "10 seconds",
+          "validation": {
+            "error_type": "missing_reference",
+            "reference_issue": "no previous part identified",
+            "guidance": "how to specify references"
+          },
+          "success_criteria": [
+            "Identifies missing reference problem",
+            "Explains how to properly reference geometry",
+            "Offers to help create base geometry first"
+          ]
+        }
+      ]
+    },
+    "performance_stress": {
+      "description": "Testing system performance under various load conditions",
+      "difficulty": "technical",
+      "estimated_time": "45 minutes",
+      "scenarios": [
+        {
+          "id": "PS001",
+          "name": "Complex Multi-Step Operation", 
+          "prompt": "Create a complex mechanical part with base, mounting bosses, holes, fillets, and assembly features",
+          "expected_operations": 15,
+          "expected_duration": "60 seconds",
+          "validation": {
+            "operation_count": ">=15",
+            "processing_time": "<=60 seconds",
+            "memory_usage": "reasonable"
+          },
+          "success_criteria": [
+            "All operations execute successfully",
+            "Response time under 60 seconds",
+            "No memory or performance issues"
+          ]
+        },
+        {
+          "id": "PS002",
+          "name": "Large Pattern Array",
+          "prompt": "Create a 10x10 array of 2mm diameter holes spaced 5mm apart",
+          "expected_operations": ["create_sketch", "draw_circle", "pattern_linear", "pattern_linear", "cut"],
+          "expected_duration": "30 seconds",
+          "validation": {
+            "hole_count": 100,
+            "pattern_type": "rectangular",
+            "processing_time": "<=30 seconds"
+          },
+          "success_criteria": [
+            "100 holes created successfully",
+            "Proper rectangular pattern",
+            "Acceptable performance"
+          ]
+        },
+        {
+          "id": "PS003",
+          "name": "Rapid Sequential Operations",
+          "prompt": "Execute 10 simple operations in sequence rapidly",
+          "description": "Run 10 simple geometry creation prompts back-to-back",
+          "expected_duration": "120 seconds total",
+          "validation": {
+            "total_operations": 10,
+            "success_rate": ">=90%",
+            "average_response_time": "<=12 seconds"
+          },
+          "success_criteria": [
+            "At least 9 of 10 operations succeed",
+            "System remains stable throughout",
+            "No significant performance degradation"
+          ]
+        }
+      ]
+    }
+  },
+  "testing_workflow": {
+    "daily_testing": {
+      "duration": "30-45 minutes",
+      "recommended_scenarios": [
+        "Select 2-3 scenarios from basic_geometry",
+        "Select 1-2 scenarios from features_modifications",
+        "Select 1 scenario from error_handling"
+      ],
+      "documentation": [
+        "Record prompt used",
+        "Note actual vs expected results",
+        "Time each operation",
+        "Rate success on 1-5 scale",
+        "Document any issues or suggestions"
+      ]
+    },
+    "weekly_comprehensive": {
+      "duration": "2-3 hours",
+      "recommended_scenarios": [
+        "Complete one full category",
+        "Focus on different category each week",
+        "Include performance testing",
+        "Test error handling scenarios"
+      ],
+      "documentation": [
+        "Detailed feedback form completion",
+        "Performance benchmark results",
+        "Feature request compilation", 
+        "Bug report filing if needed"
+      ]
+    }
+  },
+  "success_metrics": {
+    "operation_success_rate": {
+      "excellent": ">=95%",
+      "good": ">=85%", 
+      "acceptable": ">=75%",
+      "needs_improvement": "<75%"
+    },
+    "response_times": {
+      "simple_operations": "<=15 seconds",
+      "medium_operations": "<=30 seconds", 
+      "complex_operations": "<=60 seconds"
+    },
+    "user_satisfaction": {
+      "prompt_understanding": "4.0+/5.0",
+      "result_accuracy": "4.0+/5.0",
+      "user_experience": "4.0+/5.0", 
+      "error_handling": "3.5+/5.0"
+    }
+  },
+  "feedback_categories": {
+    "functionality": [
+      "Prompt interpretation accuracy",
+      "Operation selection appropriateness", 
+      "Parameter extraction correctness",
+      "Geometry quality and precision"
+    ],
+    "usability": [
+      "Interface clarity and intuitiveness",
+      "Workflow efficiency",
+      "Error message helpfulness",
+      "Learning curve and documentation"
+    ],
+    "performance": [
+      "Response time for various complexity levels",
+      "System stability under load",
+      "Memory and CPU usage impact",
+      "Fusion 360 integration smoothness"
+    ],
+    "features": [
+      "Missing operation types needed",
+      "Workflow improvements desired", 
+      "Advanced features that would help",
+      "Integration enhancements wanted"
+    ]
+  },
+  "reporting_templates": {
+    "daily_log": {
+      "date": "YYYY-MM-DD",
+      "session_duration": "minutes",
+      "scenarios_tested": ["scenario_ids"],
+      "overall_rating": "1-5",
+      "successes": ["what worked well"],
+      "issues": ["what didn't work"],
+      "suggestions": ["improvement ideas"],
+      "time_saved_estimate": "percentage vs manual CAD"
+    },
+    "bug_report": {
+      "bug_id": "auto-generated",
+      "severity": "critical/high/medium/low",
+      "scenario_id": "which test scenario",
+      "prompt_used": "exact text entered",
+      "expected_result": "what should happen", 
+      "actual_result": "what actually happened",
+      "reproduction_steps": ["step by step"],
+      "system_info": "OS, Fusion version, etc.",
+      "workaround": "if any found"
+    },
+    "weekly_summary": {
+      "week_of": "YYYY-MM-DD",
+      "total_testing_time": "hours",
+      "scenarios_completed": "count",
+      "success_rate": "percentage",
+      "top_issues": ["most common problems"],
+      "best_features": ["what works really well"],
+      "priority_requests": ["most wanted improvements"],
+      "overall_satisfaction": "1-5 with comments"
+    }
+  }
+}

@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fusion 360 Co-Pilot - UI Mockup</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            min-height: 100vh;
+        }
+
+        .panel {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            background: linear-gradient(135deg, #0696D7, #1E88E5);
+            color: white;
+            padding: 20px;
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .panel-content {
+            flex: 1;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Left Panel - Chat Interface */
+        .chat-input {
+            margin-bottom: 20px;
+        }
+
+        .chat-input label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #555;
+        }
+
+        .prompt-textarea {
+            width: 100%;
+            min-height: 120px;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 14px;
+            resize: vertical;
+            transition: border-color 0.2s;
+        }
+
+        .prompt-textarea:focus {
+            outline: none;
+            border-color: #0696D7;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background-color: #0696D7;
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background-color: #0577B8;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background-color: #545b62;
+            transform: translateY(-1px);
+        }
+
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background-color: #218838;
+            transform: translateY(-1px);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .example-prompts {
+            margin-bottom: 20px;
+        }
+
+        .example-prompts h4 {
+            margin-bottom: 12px;
+            color: #555;
+            font-size: 14px;
+        }
+
+        .example-prompt {
+            background-color: #f8f9fa;
+            padding: 10px;
+            margin: 6px 0;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            border: 1px solid #e9ecef;
+            transition: all 0.2s;
+        }
+
+        .example-prompt:hover {
+            background-color: #e9ecef;
+            border-color: #0696D7;
+        }
+
+        .results-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .results-section h4 {
+            margin-bottom: 12px;
+            color: #555;
+            font-size: 14px;
+        }
+
+        .results-display {
+            flex: 1;
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            overflow-y: auto;
+            min-height: 200px;
+        }
+
+        /* Right Panel - Action Log & Preview */
+        .tabbed-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tab-buttons {
+            display: flex;
+            border-bottom: 1px solid #e0e0e0;
+            margin-bottom: 20px;
+        }
+
+        .tab-button {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #666;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .tab-button.active {
+            color: #0696D7;
+            border-bottom-color: #0696D7;
+        }
+
+        .tab-button:hover {
+            background-color: #f8f9fa;
+        }
+
+        .tab-content {
+            flex: 1;
+            display: none;
+            flex-direction: column;
+        }
+
+        .tab-content.active {
+            display: flex;
+        }
+
+        /* Action Log Styles */
+        .action-log {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            display: flex;
+            align-items: flex-start;
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background-color 0.2s;
+        }
+
+        .log-entry:hover {
+            background-color: #f8f9fa;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-status {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 12px;
+            margin-top: 2px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .log-status.success {
+            background-color: #28a745;
+        }
+
+        .log-status.error {
+            background-color: #dc3545;
+        }
+
+        .log-status.warning {
+            background-color: #ffc107;
+            color: #333;
+        }
+
+        .log-status.pending {
+            background-color: #6c757d;
+        }
+
+        .log-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .log-summary {
+            font-weight: 500;
+            margin-bottom: 4px;
+            color: #333;
+        }
+
+        .log-details {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 6px;
+        }
+
+        .log-operations {
+            font-size: 11px;
+            color: #888;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+
+        .log-time {
+            font-size: 11px;
+            color: #999;
+            margin-left: 12px;
+            white-space: nowrap;
+        }
+
+        /* Preview Styles */
+        .preview-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .preview-images {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .preview-image {
+            aspect-ratio: 4/3;
+            background: linear-gradient(45deg, #f0f0f0 25%, transparent 25%),
+                        linear-gradient(-45deg, #f0f0f0 25%, transparent 25%),
+                        linear-gradient(45deg, transparent 75%, #f0f0f0 75%),
+                        linear-gradient(-45deg, transparent 75%, #f0f0f0 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            font-size: 12px;
+            position: relative;
+        }
+
+        .preview-label {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: rgba(255,255,255,0.9);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 500;
+        }
+
+        .preview-summary {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .preview-summary h5 {
+            margin-bottom: 10px;
+            color: #555;
+            font-size: 14px;
+        }
+
+        .preview-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+        }
+
+        .preview-stat {
+            text-align: center;
+        }
+
+        .preview-stat-value {
+            display: block;
+            font-size: 18px;
+            font-weight: bold;
+            color: #0696D7;
+        }
+
+        .preview-stat-label {
+            font-size: 11px;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        /* Status Bar */
+        .status-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: #343a40;
+            color: white;
+            padding: 10px 20px;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .status-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top: 2px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+
+        .spinner.active {
+            display: block;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .connection-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #28a745;
+        }
+
+        .connection-dot.warning {
+            background-color: #ffc107;
+        }
+
+        .connection-dot.error {
+            background-color: #dc3545;
+        }
+
+        /* Editable Parameters */
+        .param-editor {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 6px;
+            padding: 8px;
+            margin: 4px 0;
+            font-size: 11px;
+        }
+
+        .param-input {
+            width: 60px;
+            padding: 2px 4px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 11px;
+            margin: 0 4px;
+        }
+
+        .param-unit {
+            color: #666;
+            font-size: 10px;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+                padding: 10px;
+            }
+            
+            .button-group {
+                flex-direction: column;
+            }
+            
+            .preview-images {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Left Panel - Chat Interface -->
+        <div class="panel">
+            <div class="panel-header">
+                🤖 Natural Language Input
+            </div>
+            <div class="panel-content">
+                <div class="chat-input">
+                    <label for="promptInput">Describe what you want to create:</label>
+                    <textarea 
+                        id="promptInput" 
+                        class="prompt-textarea" 
+                        placeholder="Examples:
+• Create a 100x50mm plate that's 5mm thick
+• Add 4 corner holes, 6mm diameter, 5mm from edges
+• Fillet all edges with 3mm radius
+• Create a linear pattern of 5 holes spaced 10mm apart"></textarea>
+                </div>
+
+                <div class="button-group">
+                    <button id="parseBtn" class="btn btn-primary">
+                        🔍 Parse
+                    </button>
+                    <button id="previewBtn" class="btn btn-secondary" disabled>
+                        👁️ Preview
+                    </button>
+                    <button id="applyBtn" class="btn btn-success" disabled>
+                        ✅ Apply
+                    </button>
+                </div>
+
+                <div class="example-prompts">
+                    <h4>💡 Quick Examples</h4>
+                    <div class="example-prompt" data-prompt="Create a 100x50x10mm rectangular plate">
+                        📐 Create a 100x50x10mm rectangular plate
+                    </div>
+                    <div class="example-prompt" data-prompt="Add a 6mm hole in the center">
+                        🕳️ Add a 6mm hole in the center
+                    </div>
+                    <div class="example-prompt" data-prompt="Fillet all edges with 3mm radius">
+                        🔄 Fillet all edges with 3mm radius
+                    </div>
+                    <div class="example-prompt" data-prompt="Create 4 corner holes, 8mm diameter">
+                        ⚫ Create 4 corner holes, 8mm diameter
+                    </div>
+                </div>
+
+                <div class="results-section">
+                    <h4>📋 Plan Results</h4>
+                    <div id="resultsDisplay" class="results-display">Ready for input...
+
+Try entering a natural language description of what you want to create, then click Parse to see the structured plan.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel - Action Log & Preview -->
+        <div class="panel">
+            <div class="panel-header">
+                📊 Action Log & Preview
+            </div>
+            <div class="panel-content">
+                <div class="tabbed-content">
+                    <div class="tab-buttons">
+                        <button class="tab-button active" data-tab="log">📝 Action Log</button>
+                        <button class="tab-button" data-tab="preview">👁️ Preview</button>
+                    </div>
+
+                    <!-- Action Log Tab -->
+                    <div id="logTab" class="tab-content active">
+                        <div class="action-log">
+                            <div class="log-entry">
+                                <div class="log-status success">✓</div>
+                                <div class="log-content">
+                                    <div class="log-summary">Co-Pilot initialized successfully</div>
+                                    <div class="log-details">System ready for natural language input</div>
+                                    <div class="log-operations">startup → ready</div>
+                                </div>
+                                <div class="log-time">just now</div>
+                            </div>
+
+                            <div class="log-entry">
+                                <div class="log-status success">✓</div>
+                                <div class="log-content">
+                                    <div class="log-summary">rectangle(100×50) → extrude(5mm)</div>
+                                    <div class="log-details">Created rectangular plate: 100×50×5mm</div>
+                                    <div class="log-operations">create_sketch → draw_rectangle → extrude</div>
+                                    <div class="param-editor">
+                                        📏 Width: <input type="number" class="param-input" value="100"> <span class="param-unit">mm</span>
+                                        📏 Height: <input type="number" class="param-input" value="50"> <span class="param-unit">mm</span>
+                                        📏 Thickness: <input type="number" class="param-input" value="5"> <span class="param-unit">mm</span>
+                                        <button onclick="updateParams()" style="margin-left: 8px; font-size: 10px; padding: 2px 6px;">Update</button>
+                                    </div>
+                                </div>
+                                <div class="log-time">2m ago</div>
+                            </div>
+
+                            <div class="log-entry">
+                                <div class="log-status success">✓</div>
+                                <div class="log-content">
+                                    <div class="log-summary">hole(⌀6mm) → pattern(4×corners)</div>
+                                    <div class="log-details">Added 4 corner holes, 6mm diameter</div>
+                                    <div class="log-operations">create_hole → pattern_rectangular</div>
+                                </div>
+                                <div class="log-time">1m ago</div>
+                            </div>
+
+                            <div class="log-entry">
+                                <div class="log-status warning">⚠</div>
+                                <div class="log-content">
+                                    <div class="log-summary">fillet(R3mm) → 8 edges</div>
+                                    <div class="log-details">Applied fillet with warning: large radius for thin part</div>
+                                    <div class="log-operations">fillet → validate → warning</div>
+                                </div>
+                                <div class="log-time">30s ago</div>
+                            </div>
+
+                            <div class="log-entry">
+                                <div class="log-status pending">⏳</div>
+                                <div class="log-content">
+                                    <div class="log-summary">Parsing: "Create a linear pattern of 5 holes..."</div>
+                                    <div class="log-details">Processing natural language input</div>
+                                    <div class="log-operations">parse → validate → plan</div>
+                                </div>
+                                <div class="log-time">now</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Preview Tab -->
+                    <div id="previewTab" class="tab-content">
+                        <div class="preview-content">
+                            <div class="preview-images">
+                                <div class="preview-image">
+                                    <div class="preview-label">Before</div>
+                                    <div>Current Design<br><small>📐 100×50×5mm plate</small></div>
+                                </div>
+                                <div class="preview-image">
+                                    <div class="preview-label">After</div>
+                                    <div>With Changes<br><small>+ 5 holes pattern</small></div>
+                                </div>
+                            </div>
+
+                            <div class="preview-summary">
+                                <h5>📊 Preview Summary</h5>
+                                <div class="preview-stats">
+                                    <div class="preview-stat">
+                                        <span class="preview-stat-value">5</span>
+                                        <span class="preview-stat-label">Operations</span>
+                                    </div>
+                                    <div class="preview-stat">
+                                        <span class="preview-stat-value">2.3s</span>
+                                        <span class="preview-stat-label">Est. Time</span>
+                                    </div>
+                                    <div class="preview-stat">
+                                        <span class="preview-stat-value">3</span>
+                                        <span class="preview-stat-label">Features</span>
+                                    </div>
+                                    <div class="preview-stat">
+                                        <span class="preview-stat-value">95%</span>
+                                        <span class="preview-stat-label">Confidence</span>
+                                    </div>
+                                </div>
+                                
+                                <div style="margin-top: 15px; font-size: 12px; color: #666;">
+                                    <strong>Changes:</strong><br>
+                                    • Create sketch on XY plane<br>
+                                    • Draw 5 circles (⌀4mm) spaced 10mm apart<br>
+                                    • Cut through all (5mm depth)<br>
+                                    • Timeline: +3 operations
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="status-bar">
+        <div class="status-left">
+            <div class="spinner" id="loadingSpinner"></div>
+            <span id="statusText">Ready</span>
+        </div>
+        <div class="connection-status">
+            <div class="connection-dot" id="connectionDot"></div>
+            <span id="connectionText">Local Mode</span>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let currentPlan = null;
+        let isProcessing = false;
+
+        // DOM elements
+        const promptInput = document.getElementById('promptInput');
+        const parseBtn = document.getElementById('parseBtn');
+        const previewBtn = document.getElementById('previewBtn');
+        const applyBtn = document.getElementById('applyBtn');
+        const resultsDisplay = document.getElementById('resultsDisplay');
+        const statusText = document.getElementById('statusText');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const connectionDot = document.getElementById('connectionDot');
+        const connectionText = document.getElementById('connectionText');
+
+        // Tab functionality
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', () => {
+                const targetTab = button.dataset.tab;
+                
+                // Update button states
+                document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+                
+                // Update tab content
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+                document.getElementById(targetTab + 'Tab').classList.add('active');
+            });
+        });
+
+        // Example prompt functionality
+        document.querySelectorAll('.example-prompt').forEach(prompt => {
+            prompt.addEventListener('click', () => {
+                promptInput.value = prompt.dataset.prompt;
+                promptInput.focus();
+                
+                // Visual feedback
+                prompt.style.backgroundColor = '#e3f2fd';
+                setTimeout(() => {
+                    prompt.style.backgroundColor = '';
+                }, 200);
+            });
+        });
+
+        // Button event handlers
+        parseBtn.addEventListener('click', handleParse);
+        previewBtn.addEventListener('click', handlePreview);
+        applyBtn.addEventListener('click', handleApply);
+
+        function handleParse() {
+            const prompt = promptInput.value.trim();
+            if (!prompt) {
+                showMessage('Please enter a prompt describing what you want to create.', 'error');
+                return;
+            }
+
+            setProcessing(true, 'Parsing natural language...');
+            
+            // Simulate API call
+            setTimeout(() => {
+                const mockPlan = generateMockPlan(prompt);
+                handleParseResult(mockPlan);
+            }, 1500);
+        }
+
+        function handlePreview() {
+            if (!currentPlan) {
+                showMessage('No plan available for preview. Parse a prompt first.', 'error');
+                return;
+            }
+
+            setProcessing(true, 'Generating preview...');
+            
+            // Simulate preview generation
+            setTimeout(() => {
+                const mockPreview = generateMockPreview(currentPlan);
+                handlePreviewResult(mockPreview);
+            }, 1200);
+        }
+
+        function handleApply() {
+            if (!currentPlan) {
+                showMessage('No plan available to apply. Parse a prompt first.', 'error');
+                return;
+            }
+
+            if (!confirm('Apply this plan to your active design? This action cannot be undone.')) {
+                return;
+            }
+
+            setProcessing(true, 'Applying operations...');
+            
+            // Simulate application
+            setTimeout(() => {
+                const mockResult = generateMockApplyResult(currentPlan);
+                handleApplyResult(mockResult);
+            }, 2000);
+        }
+
+        function setProcessing(processing, message = '') {
+            isProcessing = processing;
+            parseBtn.disabled = processing;
+            previewBtn.disabled = processing || !currentPlan;
+            applyBtn.disabled = processing || !currentPlan;
+
+            if (processing) {
+                loadingSpinner.classList.add('active');
+                statusText.textContent = message;
+                connectionDot.className = 'connection-dot warning';
+            } else {
+                loadingSpinner.classList.remove('active');
+                statusText.textContent = 'Ready';
+                connectionDot.className = 'connection-dot';
+            }
+        }
+
+        function showMessage(message, type = 'info') {
+            resultsDisplay.textContent = message;
+            addLogEntry(message, type);
+        }
+
+        function addLogEntry(message, type = 'info') {
+            const actionLog = document.querySelector('.action-log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            
+            const statusIcon = type === 'error' ? '✗' : type === 'success' ? '✓' : type === 'warning' ? '⚠' : '⏳';
+            const timestamp = new Date().toLocaleTimeString();
+            
+            entry.innerHTML = `
+                <div class="log-status ${type}">${statusIcon}</div>
+                <div class="log-content">
+                    <div class="log-summary">${message}</div>
+                    <div class="log-details">Simulated operation in demo mode</div>
+                    <div class="log-operations">demo → ${type}</div>
+                </div>
+                <div class="log-time">${timestamp}</div>
+            `;
+            
+            actionLog.insertBefore(entry, actionLog.firstChild);
+            
+            // Limit log entries
+            while (actionLog.children.length > 10) {
+                actionLog.removeChild(actionLog.lastChild);
+            }
+        }
+
+        function generateMockPlan(prompt) {
+            const operations = [];
+            
+            if (prompt.toLowerCase().includes('plate') || prompt.toLowerCase().includes('rectangle')) {
+                operations.push('create_sketch', 'draw_rectangle', 'extrude');
+            }
+            if (prompt.toLowerCase().includes('hole')) {
+                operations.push('create_hole');
+            }
+            if (prompt.toLowerCase().includes('pattern') || prompt.toLowerCase().includes('corner')) {
+                operations.push('pattern_rectangular');
+            }
+            if (prompt.toLowerCase().includes('fillet')) {
+                operations.push('fillet');
+            }
+            
+            return {
+                plan_id: 'mock_' + Date.now(),
+                operations: operations,
+                confidence: 0.85 + Math.random() * 0.1
+            };
+        }
+
+        function generateMockPreview(plan) {
+            return {
+                success: true,
+                estimated_features: plan.operations.map(op => op.replace('_', ' ')),
+                preview_duration: 1.2,
+                operations_count: plan.operations.length
+            };
+        }
+
+        function generateMockApplyResult(plan) {
+            return {
+                success: true,
+                execution_duration: 2.1,
+                operations_executed: plan.operations.length,
+                features_created: [`Feature_${Date.now()}`]
+            };
+        }
+
+        function handleParseResult(mockPlan) {
+            setProcessing(false);
+            
+            currentPlan = mockPlan;
+            previewBtn.disabled = false;
+            applyBtn.disabled = false;
+            
+            let resultText = `Plan parsed successfully!\n\n`;
+            resultText += `Operations (${mockPlan.operations.length}):\n`;
+            
+            mockPlan.operations.forEach((op, i) => {
+                resultText += `${i + 1}. ${op.replace('_', ' ')}\n`;
+            });
+            
+            resultText += `\nConfidence: ${(mockPlan.confidence * 100).toFixed(1)}%`;
+            
+            resultsDisplay.textContent = resultText;
+            addLogEntry(`Plan parsed: ${mockPlan.operations.length} operations`, 'success');
+        }
+
+        function handlePreviewResult(mockPreview) {
+            setProcessing(false);
+            
+            let resultText = `Preview completed!\n\n`;
+            resultText += `Features to create: ${mockPreview.estimated_features.length}\n`;
+            resultText += `Estimated duration: ${mockPreview.preview_duration}s\n\n`;
+            resultText += 'Features:\n';
+            
+            mockPreview.estimated_features.forEach((feature, i) => {
+                resultText += `${i + 1}. ${feature}\n`;
+            });
+            
+            resultsDisplay.textContent = resultText;
+            addLogEntry('Preview generated successfully', 'success');
+            
+            // Switch to preview tab
+            document.querySelector('[data-tab="preview"]').click();
+        }
+
+        function handleApplyResult(mockResult) {
+            setProcessing(false);
+            
+            let resultText = `Operations applied successfully!\n\n`;
+            resultText += `Execution time: ${mockResult.execution_duration}s\n`;
+            resultText += `Features created: ${mockResult.features_created.length}\n\n`;
+            
+            if (mockResult.features_created.length > 0) {
+                resultText += 'Created features:\n';
+                mockResult.features_created.forEach((feature, i) => {
+                    resultText += `${i + 1}. ${feature}\n`;
+                });
+            }
+            
+            resultsDisplay.textContent = resultText;
+            addLogEntry(`Applied ${mockResult.operations_executed} operations`, 'success');
+            
+            // Reset for next operation
+            currentPlan = null;
+            previewBtn.disabled = true;
+            applyBtn.disabled = true;
+            promptInput.value = '';
+        }
+
+        function updateParams() {
+            addLogEntry('Parameters updated', 'success');
+        }
+
+        // Initialize
+        addLogEntry('UI mockup loaded - demo mode active', 'success');
+        connectionText.textContent = 'Demo Mode';
+    </script>
+</body>
+</html>

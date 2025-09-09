@@ -1,0 +1,28 @@
+# PLACEHOLDER: icon.png
+# 
+# This file should be replaced with a 32x32 pixel PNG icon for the Fusion 360 add-in.
+# 
+# Recommended icon design:
+# - 32x32 pixels, PNG format with transparency
+# - Simple, recognizable design that works at small sizes
+# - Consistent with Fusion 360's icon style (flat design, clear contrast)
+# - Suggested elements: Chat bubble + CAD/gear symbol, or brain + wrench
+# - Colors: Blue/orange to match Fusion 360 branding
+#
+# To create the icon:
+# 1. Use design software like Figma, Sketch, or Adobe Illustrator
+# 2. Export as PNG with transparent background
+# 3. Replace this text file with the actual icon.png
+# 4. Ensure filename remains exactly "icon.png"
+#
+# Alternative: Use a free icon from resources like:
+# - Heroicons (heroicons.com)
+# - Feather Icons (feathericons.com) 
+# - Material Icons (fonts.google.com/icons)
+#
+# Example SVG that could be converted to PNG:
+# <svg width="32" height="32" viewBox="0 0 32 32">
+#   <circle cx="16" cy="12" r="8" fill="#0696D7"/>
+#   <rect x="8" y="20" width="16" height="8" rx="2" fill="#FF6B35"/>
+#   <path d="M12 16l4 2 4-2" stroke="white" stroke-width="2"/>
+# </svg>
