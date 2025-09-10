@@ -626,6 +626,25 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
     def create_command_inputs(self, inputs):
         """Create the command dialog inputs."""
         try:
+            # Header label
+            header = inputs.addTextBoxCommandInput(
+                'header_label',
+                '',
+                'Co-Pilot — Natural Language CAD',
+                1,
+                True
+            )
+            header.isFullWidth = True
+
+            # Status line
+            status_line = inputs.addTextBoxCommandInput(
+                'status_line',
+                'Status',
+                'Ready',
+                1,
+                True
+            )
+
             # Results display (put first so it's always visible)
             # Results: use a string input (updates reliably across builds)
             results_input = inputs.addStringValueInput(
@@ -646,6 +665,12 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
             )
             prompt_input.tooltip = "Enter your natural language description of what you want to create"
             
+            # Examples dropdown
+            examples = inputs.addDropDownCommandInput('example_prompts', 'Examples', adsk.core.DropDownStyles.TextListDropDownStyle)
+            examples.listItems.add('Create a 25mm cube', False)
+            examples.listItems.add('Create a 100x50x10mm rectangular plate', False)
+            examples.listItems.add('Add a 6mm hole at the center', False)
+
             # Action buttons group
             button_group = inputs.addGroupCommandInput('action_buttons', 'Actions')
             button_group.isExpanded = True
@@ -1243,9 +1268,9 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                 except Exception:
                     pass
                 try:
-                    results_display = inputs.itemById('results_display')
-                    if results_display:
-                        results_display.text = "Running pipeline..."
+                    status_line = inputs.itemById('status_line')
+                    if status_line:
+                        status_line.text = 'Running pipeline...'
                 except Exception:
                     pass
                 # Run the pipeline inline here for reliable UI updates
@@ -1384,6 +1409,22 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                                     adsk.core.LogTypes.ConsoleLogType)
                     except Exception:
                         pass
+
+            # Examples selection → fill prompt
+            if changed_input.id == 'example_prompts':
+                try:
+                    sel = inputs.itemById('example_prompts')
+                    prompt = inputs.itemById('prompt_input')
+                    idx = sel.selectedItem.index
+                    presets = [
+                        'Create a 25mm cube',
+                        'Create a 100x50x10mm rectangular plate',
+                        'Add a 6mm hole at the center'
+                    ]
+                    if prompt:
+                        prompt.text = presets[idx]
+                except Exception:
+                    pass
 
             # Reset button states
             changed_input.value = False
