@@ -389,7 +389,9 @@ def get_default_settings() -> Dict:
         },
         'ui': {
             'default_dock_position': 'right',
-            'theme': 'auto'
+            'theme': 'auto',
+            # Default to dialog mode when settings cannot be loaded
+            'enable_palette': False
         },
         'logging': {
             'debug': False,
@@ -431,7 +433,8 @@ def create_ui_components():
     
     try:
         if FUSION_AVAILABLE and ui:
-            enable_palette = settings.get('ui', {}).get('enable_palette', True)
+            # Prefer dialog by default if settings missing
+            enable_palette = settings.get('ui', {}).get('enable_palette', False)
             try:
                 logger.info(f"UI mode → enable_palette={enable_palette}")
                 if app:
@@ -451,6 +454,15 @@ def create_ui_components():
                 logger.info("Palette UI enabled (offline-first Parse)")
             else:
                 logger.info("Palette UI disabled by settings; using command dialog only")
+                # Proactively remove any leftover palette from previous runs
+                try:
+                    palettes = ui.palettes
+                    existing_palette = palettes.itemById('CoPilotPalette') if palettes else None
+                    if existing_palette and existing_palette.isValid:
+                        existing_palette.deleteMe()
+                        logger.info("Removed stale Co-Pilot palette")
+                except Exception:
+                    pass
         else:
             logger.info("UI creation skipped (development mode)")
             
@@ -466,7 +478,8 @@ def register_commands():
     try:
         if FUSION_AVAILABLE and ui:
             # If palette UI is active per settings, avoid registering the dialog-based command
-            palette_active = settings.get('ui', {}).get('enable_palette', True)
+            # Prefer dialog by default if settings missing
+            palette_active = settings.get('ui', {}).get('enable_palette', False)
             if palette_active:
                 # Clean up any stale dialog command/button
                 try:
@@ -894,18 +907,19 @@ class CoPilotApplyNowExecuteHandler(adsk.core.CommandEventHandler if FUSION_AVAI
             
             # Step 1: Send to LLM for parsing
             if results_display:
-                results_display.text = "Parsing natural language prompt..."
+                results_display.value = "Parsing natural language prompt..."
             
             parsed_plan = self.send_to_llm(prompt)
             
             if not parsed_plan:
                 if results_display:
-                    results_display.text = "Failed to parse prompt. Check LLM connection."
+                    results_display.value = "Failed to parse prompt. Check LLM connection."
                 return
             
             # Step 2: Sanitize the plan
             if results_display:
-                results_display.text += "\n\nValidating and sanitizing plan..."
+                current = results_display.value
+                results_display.value = (current or "") + "\n\nValidating and sanitizing plan..."
             
             is_valid, sanitized_plan, messages = sanitizer.sanitize_plan(parsed_plan)
             
@@ -917,8 +931,10 @@ class CoPilotApplyNowExecuteHandler(adsk.core.CommandEventHandler if FUSION_AVAI
             # Step 3: Show sanitized plan
             op_count = len(sanitized_plan.get('operations', []))
             if results_display:
-                results_display.text += f"\n\nPlan validated successfully!"
-                results_display.text += f"\nOperations: {op_count}"
+                current = results_display.value
+                current = (current or "") + f"\n\nPlan validated successfully!"
+                current = current + f"\nOperations: {op_count}"
+                results_display.value = current
             # Also show a quick summary dialog so you see immediate feedback
             try:
                 if FUSION_AVAILABLE and ui:
@@ -928,18 +944,20 @@ class CoPilotApplyNowExecuteHandler(adsk.core.CommandEventHandler if FUSION_AVAI
             
             if messages:
                 if results_display:
-                    results_display.text += f"\n\nWarnings:\n" + "\n".join(messages)
+                    current = results_display.value
+                    results_display.value = (current or "") + (f"\n\nWarnings:\n" + "\n".join(messages))
             
             # Step 4: Preview (if requested)
             # This would be handled by button clicks in a full implementation
             
             if results_display:
-                results_display.text += f"\n\nReady for preview or execution."
+                current = results_display.value
+                results_display.value = (current or "") + f"\n\nReady for preview or execution."
             
         except Exception as e:
             logger.error(f"Error processing prompt: {e}")
             if results_display:
-                results_display.text = f"Error: {str(e)}"
+                results_display.value = f"Error: {str(e)}"
     
     def send_to_llm(self, prompt: str) -> Optional[Dict]:
         """Send prompt to LLM and get structured plan using production LLM service."""
@@ -1357,7 +1375,7 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                     try:
                         results_display = inputs.itemById('results_display')
                         if results_display:
-                            results_display.text = f"Error: {e}"
+                            results_display.value = f"Error: {e}"
                     except Exception:
                         pass
             elif changed_input.id == 'preview_button' and changed_input.value:
@@ -1440,7 +1458,7 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
             prompt_input = inputs.itemById('prompt_input')
             prompt_text = prompt_input.text if prompt_input else ""
             if results_display:
-                results_display.text = "Parsing natural language prompt...\n(Contacting LLM or using offline canned plan)"
+                results_display.value = "Parsing natural language prompt...\n(Contacting LLM or using offline canned plan)"
             
             # Prefer LLM/Stub first
             exec_handler = CoPilotExecuteHandler()
@@ -1454,7 +1472,7 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                     ops = sanitized_plan.get('operations', [])
                     last_sanitized_plan = sanitized_plan
                     if results_display:
-                        results_display.text = "Plan validated successfully!\nOperations: " + str(len(ops))
+                        results_display.value = "Plan validated successfully!\nOperations: " + str(len(ops))
                     try:
                         if FUSION_AVAILABLE and app:
                             app.log(f"[CoPilot] LLM/Stub plan ready (ops={len(ops)})",
@@ -1482,7 +1500,7 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
             ops = sanitized_plan.get('operations', [])
             last_sanitized_plan = sanitized_plan
             if results_display:
-                results_display.text = "Plan validated successfully!\nOperations: " + str(len(ops))
+                results_display.value = "Plan validated successfully!\nOperations: " + str(len(ops))
             try:
                 if FUSION_AVAILABLE and app:
                     app.log(f"[CoPilot] Offline plan ready (ops={len(ops)})",
@@ -1499,7 +1517,7 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
             logger.error(f"Parse handler error (dialog): {e}")
             results_display = inputs.itemById('results_display')
             if results_display:
-                results_display.text = f"Error: {e}"
+                results_display.value = f"Error: {e}"
     
     def handle_preview_button(self, inputs):
         """Handle preview button click."""
