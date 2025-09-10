@@ -137,22 +137,19 @@ class CoPilotUI:
     def _create_palette(self):
         """Create the main Co-Pilot palette."""
         try:
-            print("[CoPilot] _create_palette: generating HTML content")
-            # HTML content for the palette
-            html_content = self._generate_palette_html()
-            
-            # Write HTML content to a local file and provide a file:// URL to Fusion
+            # Use static HTML file from resources and add a cache-busting query
             base_dir = os.path.dirname(os.path.abspath(__file__))
-            palette_dir = os.path.join(base_dir, 'resources', 'palette')
-            os.makedirs(palette_dir, exist_ok=True)
-            html_file_path = os.path.join(palette_dir, 'index.html')
-            with open(html_file_path, 'w', encoding='utf-8') as f:
-                f.write(html_content)
+            html_file_path = os.path.join(base_dir, 'resources', 'palette', 'index.html')
+            if not os.path.exists(html_file_path):
+                raise FileNotFoundError(f"Palette HTML not found: {html_file_path}")
 
-            # Build a file URL that Fusion accepts
+            # Build a file URL Fusion accepts, with timestamp to avoid caching
             html_url = html_file_path.replace('\\', '/')
             if not html_url.startswith('file://'):
                 html_url = f'file://{html_url}'
+            from datetime import datetime
+            cache_bust = datetime.now().strftime('%Y%m%d%H%M%S')
+            html_url = f"{html_url}?v={cache_bust}"
 
             # Create palette
             print(f"[CoPilot] palettes.add: start, url={html_url}")
@@ -165,7 +162,7 @@ class CoPilotUI:
                 True,  # isResizable
                 400,   # width
                 600,   # height
-                True   # useNewWebBrowser
+                False   # useNewWebBrowser (legacy webview for reliable bridge)
             )
             print("[CoPilot] palettes.add: ok")
             

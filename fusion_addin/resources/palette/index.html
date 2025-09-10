@@ -318,11 +318,18 @@ Examples:
             
             setProcessing(true, 'Parsing natural language...');
             
-            // Send message to Fusion add-in
-            window.fusionJavaScriptHandler.handle('parse', JSON.stringify({
-                action: 'parse',
-                prompt: prompt
-            }));
+            // Send message to Fusion add-in (new bridge first, legacy fallback)
+            try {
+                adsk.fusionSendData('parse', JSON.stringify({ action: 'parse', prompt: prompt }));
+            } catch (e) {
+                if (window.fusionJavaScriptHandler && typeof window.fusionJavaScriptHandler.handle === 'function') {
+                    try { window.fusionJavaScriptHandler.handle('parse', JSON.stringify({ action: 'parse', prompt: prompt })); }
+                    catch (err) { console.error('Legacy parse failed', err); showMessage('Bridge error (legacy).', 'error'); setProcessing(false); }
+                } else {
+                    showMessage('Fusion bridge not available.', 'error');
+                    setProcessing(false);
+                }
+            }
         }
         
         function handlePreview() {
@@ -333,10 +340,17 @@ Examples:
             
             setProcessing(true, 'Generating preview...');
             
-            window.fusionJavaScriptHandler.handle('preview', JSON.stringify({
-                action: 'preview',
-                plan: currentPlan
-            }));
+            try {
+                adsk.fusionSendData('preview', JSON.stringify({ action: 'preview', plan: currentPlan }));
+            } catch (e) {
+                if (window.fusionJavaScriptHandler && typeof window.fusionJavaScriptHandler.handle === 'function') {
+                    try { window.fusionJavaScriptHandler.handle('preview', JSON.stringify({ action: 'preview', plan: currentPlan })); }
+                    catch (err) { console.error('Legacy preview failed', err); showMessage('Bridge error (legacy).', 'error'); setProcessing(false); }
+                } else {
+                    showMessage('Fusion bridge not available.', 'error');
+                    setProcessing(false);
+                }
+            }
         }
         
         function handleApply() {
@@ -351,10 +365,17 @@ Examples:
             
             setProcessing(true, 'Applying operations...');
             
-            window.fusionJavaScriptHandler.handle('apply', JSON.stringify({
-                action: 'apply',
-                plan: currentPlan
-            }));
+            try {
+                adsk.fusionSendData('apply', JSON.stringify({ action: 'apply', plan: currentPlan }));
+            } catch (e) {
+                if (window.fusionJavaScriptHandler && typeof window.fusionJavaScriptHandler.handle === 'function') {
+                    try { window.fusionJavaScriptHandler.handle('apply', JSON.stringify({ action: 'apply', plan: currentPlan })); }
+                    catch (err) { console.error('Legacy apply failed', err); showMessage('Bridge error (legacy).', 'error'); setProcessing(false); }
+                } else {
+                    showMessage('Fusion bridge not available.', 'error');
+                    setProcessing(false);
+                }
+            }
         }
         
         function setProcessing(processing, message = '') {

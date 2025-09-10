@@ -160,11 +160,13 @@ class PlanExecutor:
         """Initialize connection to Fusion 360 API."""
         if FUSION_AVAILABLE:
             try:
-                # TODO: Replace with actual Fusion API initialization
-                # self.app = adsk.core.Application.get()
-                # self.ui = self.app.userInterface
-                # self.design = self.app.activeProduct
-                
+                self.app = adsk.core.Application.get()
+                if not self.app:
+                    raise ExecutionError("Failed to acquire Fusion Application")
+                self.ui = self.app.userInterface
+                self.design = adsk.fusion.Design.cast(self.app.activeProduct)
+                if not self.design:
+                    raise ExecutionError("No active Fusion design. Open a design and try again.")
                 logger.info("Fusion 360 API initialized successfully")
             except Exception as e:
                 logger.error(f"Failed to initialize Fusion API: {e}")
@@ -368,36 +370,29 @@ class PlanExecutor:
     def _execute_create_sketch(self, op_id: str, params: Dict) -> Dict:
         """Execute create_sketch operation."""
         if FUSION_AVAILABLE:
-            # TODO: Replace with actual Fusion API calls
-            # 
-            # root_comp = self.design.rootComponent
-            # sketches = root_comp.sketches
-            # 
-            # # Determine sketch plane
-            # plane_name = params.get('plane', 'XY')
-            # if plane_name == 'XY':
-            #     sketch_plane = root_comp.xYConstructionPlane
-            # elif plane_name == 'XZ':
-            #     sketch_plane = root_comp.xZConstructionPlane
-            # elif plane_name == 'YZ':
-            #     sketch_plane = root_comp.yZConstructionPlane
-            # else:
-            #     # Custom plane reference
-            #     sketch_plane = self._resolve_plane_reference(plane_name)
-            # 
-            # # Create sketch
-            # sketch = sketches.add(sketch_plane)
-            # sketch.name = params.get('name', f'Sketch_{op_id}')
-            # 
-            # # Get timeline node
-            # timeline_node = self._get_latest_timeline_node()
-            
-            # Mock implementation
-            sketch_name = params.get('name', f'Sketch_{op_id}')
-            timeline_node = f"Timeline_Sketch_{op_id}"
-            
-            logger.info(f"[MOCK] Created sketch: {sketch_name}")
-            
+            root_comp = self.design.rootComponent
+            sketches = root_comp.sketches
+            plane_name = params.get('plane', 'XY')
+            if plane_name == 'XY':
+                sketch_plane = root_comp.xYConstructionPlane
+            elif plane_name == 'XZ':
+                sketch_plane = root_comp.xZConstructionPlane
+            elif plane_name == 'YZ':
+                sketch_plane = root_comp.yZConstructionPlane
+            else:
+                sketch_plane = root_comp.xYConstructionPlane
+            sketch = sketches.add(sketch_plane)
+            desired_name = params.get('name', f'Sketch_{op_id}')
+            # Prefix with CoPilot_ for easy identification
+            if not desired_name.startswith('CoPilot_'):
+                desired_name = f'CoPilot_{desired_name}'
+            try:
+                sketch.name = desired_name
+            except Exception:
+                pass
+            self.last_sketch = sketch
+            timeline_node = self._get_latest_timeline_node()
+            logger.info(f"Created sketch: {desired_name}")
         else:
             # Development mock
             sketch_name = params.get('name', f'Sketch_{op_id}')
@@ -406,7 +401,7 @@ class PlanExecutor:
         return {
             'success': True,
             'operation_id': op_id,
-            'feature_created': sketch_name,
+            'feature_created': desired_name if FUSION_AVAILABLE else sketch_name,
             'timeline_node': timeline_node,
             'feature_type': 'sketch'
         }
@@ -414,37 +409,46 @@ class PlanExecutor:
     def _execute_draw_rectangle(self, op_id: str, params: Dict, target_ref: Optional[str]) -> Dict:
         """Execute draw_rectangle operation."""
         if FUSION_AVAILABLE:
-            # TODO: Replace with actual Fusion API calls
-            # 
-            # # Find target sketch
-            # sketch = self._resolve_sketch_reference(target_ref)
-            # if not sketch:
-            #     raise ExecutionError(f"Target sketch not found: {target_ref}")
-            # 
-            # # Extract parameters
-            # center_point = params.get('center_point', {'x': 0, 'y': 0, 'z': 0})
-            # width = self._extract_dimension_value(params.get('width', 10))
-            # height = self._extract_dimension_value(params.get('height', 10))
-            # 
-            # # Calculate rectangle corners
-            # x1 = center_point['x'] - width / 2
-            # y1 = center_point['y'] - height / 2
-            # x2 = center_point['x'] + width / 2
-            # y2 = center_point['y'] + height / 2
-            # 
-            # # Create rectangle
-            # corner1 = adsk.core.Point3D.create(x1, y1, 0)
-            # corner2 = adsk.core.Point3D.create(x2, y2, 0)
-            # rectangle = sketch.sketchCurves.sketchLines.addTwoPointRectangle(
-            #     corner1, corner2
-            # )
-            
-            # Mock implementation
-            width = self._extract_dimension_value(params.get('width', 10))
-            height = self._extract_dimension_value(params.get('height', 10))
-            
-            logger.info(f"[MOCK] Drew rectangle: {width}x{height}mm in sketch {target_ref}")
-            
+            sketch = None
+            # Prefer explicitly the sketch we just created if target_ref matches its name
+            if target_ref:
+                sketch = self._resolve_sketch_reference(target_ref)
+            if not sketch and hasattr(self, 'last_sketch'):
+                sketch = self.last_sketch
+            if not sketch:
+                # As a final fallback, pick the last sketch in the root component
+                try:
+                    root_comp = self.design.rootComponent
+                    sketches = root_comp.sketches
+                    if sketches.count > 0:
+                        sketch = sketches.item(sketches.count - 1)
+                except Exception:
+                    sketch = None
+            if not sketch:
+                raise ExecutionError("No target sketch available for rectangle")
+
+            center_point = params.get('center_point', {'x': 0, 'y': 0, 'z': 0})
+            width_mm = self._extract_dimension_value(params.get('width', 10))
+            height_mm = self._extract_dimension_value(params.get('height', 10))
+
+            def mm(v: float) -> float:
+                return float(v) / 10.0
+
+            x1 = mm(center_point.get('x', 0)) - mm(width_mm) / 2.0
+            y1 = mm(center_point.get('y', 0)) - mm(height_mm) / 2.0
+            x2 = mm(center_point.get('x', 0)) + mm(width_mm) / 2.0
+            y2 = mm(center_point.get('y', 0)) + mm(height_mm) / 2.0
+            corner1 = adsk.core.Point3D.create(x1, y1, 0)
+            corner2 = adsk.core.Point3D.create(x2, y2, 0)
+            sketch.sketchCurves.sketchLines.addTwoPointRectangle(corner1, corner2)
+            try:
+                if sketch.profiles.count > 0:
+                    self.last_profile = sketch.profiles.item(sketch.profiles.count - 1)
+            except Exception:
+                self.last_profile = None
+            width = width_mm
+            height = height_mm
+            logger.info(f"Drew rectangle: {width}x{height}mm in sketch")
         else:
             # Development mock
             width = self._extract_dimension_value(params.get('width', 10))
@@ -516,44 +520,47 @@ class PlanExecutor:
     def _execute_extrude(self, op_id: str, params: Dict) -> Dict:
         """Execute extrude operation."""
         if FUSION_AVAILABLE:
-            # TODO: Replace with actual Fusion API calls
-            # 
-            # root_comp = self.design.rootComponent
-            # features = root_comp.features
-            # extrudes = features.extrudeFeatures
-            # 
-            # # Find profile (sketch or face)
-            # profile_ref = params.get('profile')
-            # profile = self._resolve_profile_reference(profile_ref)
-            # 
-            # # Extract extrude parameters
-            # distance = self._extract_dimension_value(params.get('distance', 10))
-            # direction = params.get('direction', 'positive')
-            # operation = params.get('operation', 'new_body')
-            # 
-            # # Create extrude input
-            # extrude_input = extrudes.createInput(
-            #     profile, 
-            #     adsk.fusion.FeatureOperations.NewBodyFeatureOperation
-            # )
-            # 
-            # # Set distance
-            # distance_input = adsk.core.ValueInput.createByReal(distance / 10)  # Convert mm to cm
-            # extrude_input.setDistanceExtent(False, distance_input)
-            # 
-            # # Create extrude feature
-            # extrude_feature = extrudes.add(extrude_input)
-            # extrude_feature.name = f'Extrude_{op_id}'
-            # 
-            # timeline_node = self._get_latest_timeline_node()
-            
-            # Mock implementation
-            distance = self._extract_dimension_value(params.get('distance', 10))
-            profile_ref = params.get('profile', 'unknown_sketch')
-            
-            logger.info(f"[MOCK] Extruded {profile_ref} by {distance}mm")
-            timeline_node = f"Timeline_Extrude_{op_id}"
-            
+            root_comp = self.design.rootComponent
+            extrudes = root_comp.features.extrudeFeatures
+            profile = getattr(self, 'last_profile', None)
+            if not profile:
+                sketch = getattr(self, 'last_sketch', None)
+                if sketch and sketch.profiles.count > 0:
+                    profile = sketch.profiles.item(sketch.profiles.count - 1)
+            if not profile:
+                raise ExecutionError("No profile available for extrude")
+            distance_mm = self._extract_dimension_value(params.get('distance', 10))
+            extrude_input = extrudes.createInput(
+                profile,
+                adsk.fusion.FeatureOperations.NewBodyFeatureOperation
+            )
+            distance_input = adsk.core.ValueInput.createByReal(float(distance_mm) / 10.0)
+            extrude_input.setDistanceExtent(False, distance_input)
+            extrude_feature = extrudes.add(extrude_input)
+            try:
+                extrude_feature.name = f'CoPilot_Extrude_{op_id}'
+            except Exception:
+                pass
+            # Rename created bodies for clarity
+            try:
+                bodies = extrude_feature.bodies
+                for i in range(bodies.count):
+                    b = bodies.item(i)
+                    try:
+                        b.name = f'CoPilot_Body_{op_id}_{i+1}'
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            # Zoom to fit to reveal the new geometry
+            try:
+                vp = self.app.activeViewport
+                if vp:
+                    vp.fit()
+            except Exception:
+                pass
+            timeline_node = self._get_latest_timeline_node()
+            logger.info(f"Extruded profile by {distance_mm}mm")
         else:
             # Development mock
             distance = self._extract_dimension_value(params.get('distance', 10))
@@ -565,7 +572,7 @@ class PlanExecutor:
             'feature_created': f'Extrude_{op_id}',
             'timeline_node': timeline_node,
             'feature_type': 'extrude',
-            'dimensions': {'distance': distance}
+            'dimensions': {'distance': distance_mm if FUSION_AVAILABLE else distance}
         }
     
     def _execute_create_hole(self, op_id: str, params: Dict, target_ref: Optional[str]) -> Dict:
@@ -755,11 +762,23 @@ class PlanExecutor:
         # In real implementation, this would search through the design's sketches
         # and return the matching sketch object
         if FUSION_AVAILABLE:
-            # root_comp = self.design.rootComponent
-            # for sketch in root_comp.sketches:
-            #     if sketch.name == sketch_ref:
-            #         return sketch
-            pass
+            try:
+                if not sketch_ref:
+                    return getattr(self, 'last_sketch', None)
+                root_comp = self.design.rootComponent
+                sketches = root_comp.sketches
+                for i in range(sketches.count):
+                    sk = sketches.item(i)
+                    try:
+                        if sk.name == sketch_ref:
+                            return sk
+                    except Exception:
+                        # Some sketches may not have a name set yet
+                        pass
+                # Fallback to last_sketch if names did not match
+                return getattr(self, 'last_sketch', None)
+            except Exception:
+                return getattr(self, 'last_sketch', None)
         
         logger.debug(f"[MOCK] Resolved sketch reference: {sketch_ref}")
         return f"MockSketch_{sketch_ref}"

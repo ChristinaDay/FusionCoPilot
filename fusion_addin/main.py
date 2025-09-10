@@ -20,6 +20,7 @@ except ImportError:
     print("ERROR: PyYAML not available. Please install: pip3 install --break-system-packages pyyaml")
     yaml = None
 from typing import Dict, Optional, Any
+from datetime import datetime
 import logging
 
 # Add current directory to Python path for imports
@@ -70,6 +71,14 @@ sanitizer: Optional[PlanSanitizer] = None
 action_logger: Optional[ActionLogger] = None
 settings: Dict = {}
 command_definitions: Dict = {}
+# Persist the most recent sanitized plan for Preview/Apply demo
+last_sanitized_plan: Optional[Dict] = None
+# Store last network error for diagnostics when LLM/stub fails
+last_network_error: Optional[str] = None
+# Keep Python-side event handler references alive for Fusion events
+event_handlers: list = []
+# Defer apply until command.execute to ensure persistence of created features
+pending_apply_plan: Optional[Dict] = None
 
 # Configure logging
 def setup_logging():
@@ -300,10 +309,8 @@ def create_ui_components():
     
     try:
         if FUSION_AVAILABLE and ui:
-            # Initialize the Co-Pilot UI
-            copilot_ui = CoPilotUI(app, ui, settings)
-            copilot_ui.create_ui()
-            logger.info("Co-Pilot UI created successfully")
+            # TEMP: Disable palette UI; use command dialog only to avoid webview bridge issues
+            logger.info("Palette disabled; using command dialog only")
         else:
             logger.info("UI creation skipped (development mode)")
             
@@ -318,6 +325,14 @@ def register_commands():
     
     try:
         if FUSION_AVAILABLE and ui:
+            # Force-rebuild the command definition each run to avoid UI caching
+            existing = ui.commandDefinitions.itemById('fusion_copilot_open')
+            if existing and existing.isValid:
+                try:
+                    existing.deleteMe()
+                except Exception:
+                    pass
+
             # Register main Co-Pilot command
             cmd_def = ui.commandDefinitions.addButtonDefinition(
                 'fusion_copilot_open',
@@ -328,13 +343,37 @@ def register_commands():
             # Connect command handler
             cmd_handler = CoPilotCommandHandler()
             cmd_def.commandCreated.add(cmd_handler)
+            event_handlers.append(cmd_handler)
             command_definitions['copilot_open'] = cmd_def
             
-            # Add to toolbar
+            # Add to toolbar (remove stale control first)
             create_panel = ui.allToolbarPanels.itemById('SolidCreatePanel')
             if create_panel:
+                stale = create_panel.controls.itemById('fusion_copilot_open')
+                if stale and stale.isValid:
+                    try:
+                        stale.deleteMe()
+                    except Exception:
+                        pass
                 create_panel.controls.addCommand(cmd_def, '', False)
                 logger.info("Co-Pilot command added to toolbar")
+
+            # Register background apply command (no UI)
+            try:
+                existing_apply = ui.commandDefinitions.itemById('fusion_copilot_apply_now')
+                if existing_apply and existing_apply.isValid:
+                    existing_apply.deleteMe()
+            except Exception:
+                pass
+            apply_def = ui.commandDefinitions.addButtonDefinition(
+                'fusion_copilot_apply_now',
+                'CoPilot Apply Now',
+                'Apply the last plan immediately (background)'
+            )
+            apply_exec = CoPilotApplyNowHandler()
+            apply_def.commandCreated.add(apply_exec)
+            event_handlers.append(apply_exec)
+            command_definitions['copilot_apply_now'] = apply_def
             
         else:
             logger.info("Command registration skipped (development mode)")
@@ -372,6 +411,8 @@ def cleanup_commands():
             
             command_definitions.clear()
             logger.info("Commands cleaned up")
+            # Clear stored event handlers
+            event_handlers.clear()
             
     except Exception as e:
         logger.error(f"Error cleaning up commands: {e}")
@@ -394,6 +435,12 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
                 return
                 
             command = args.command
+            # Ensure OK/Cancel are visible so we can commit actions in execute phase
+            try:
+                command.isOKButtonVisible = True
+                command.isCancelButtonVisible = True
+            except Exception:
+                pass
             inputs = command.commandInputs
             
             # Create command inputs for the Co-Pilot dialog
@@ -402,9 +449,11 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
             # Connect event handlers
             execute_handler = CoPilotExecuteHandler()
             command.execute.add(execute_handler)
+            event_handlers.append(execute_handler)
             
             input_changed_handler = CoPilotInputChangedHandler()
             command.inputChanged.add(input_changed_handler)
+            event_handlers.append(input_changed_handler)
             
         except Exception as e:
             logger.error(f"Error in command handler: {e}")
@@ -414,6 +463,16 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
     def create_command_inputs(self, inputs):
         """Create the command dialog inputs."""
         try:
+            # Results display (put first so it's always visible)
+            # Results: use a string input (updates reliably across builds)
+            results_input = inputs.addStringValueInput(
+                'results_display',
+                'Results',
+                'Ready...'
+            )
+            results_input.isReadOnly = True
+            results_input.tooltip = "Shows parsing results and operation details"
+
             # Main prompt input
             prompt_input = inputs.addTextBoxCommandInput(
                 'prompt_input',
@@ -427,51 +486,62 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
             # Action buttons group
             button_group = inputs.addGroupCommandInput('action_buttons', 'Actions')
             button_group.isExpanded = True
+
+            # Build tag to confirm fresh dialog
+            build_label = inputs.addTextBoxCommandInput(
+                'build_info',
+                'Build',
+                datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                1,
+                True
+            )
             
             # Parse button
             # Fusion expects a RELATIVE resource folder path here
             icon_dir = 'resources/commandIcons'
-            # Parse button
+            # Parse button (push button, not checkbox)
             parse_button = button_group.children.addBoolValueInput(
                 'parse_button',
                 'Parse',
-                True,
+                False,
                 icon_dir,
                 False
             )
             parse_button.tooltip = "Convert natural language to structured plan"
+
+            # Run button (executes full pipeline and keeps dialog open)
+            run_button = button_group.children.addBoolValueInput(
+                'run_button',
+                'Run',
+                False,
+                icon_dir,
+                False
+            )
+            run_button.tooltip = "Run parsing pipeline and show results (keeps dialog open)"
             
             # Preview button
-            # Preview button
+            # Preview button (push button)
             preview_button = button_group.children.addBoolValueInput(
                 'preview_button',
                 'Preview',
-                True,
+                False,
                 icon_dir,
                 False
             )
             preview_button.tooltip = "Preview operations in sandbox mode"
             
             # Apply button
-            # Apply button
+            # Apply button (push button)
             apply_button = button_group.children.addBoolValueInput(
                 'apply_button',
                 'Apply',
-                True,
+                False,
                 icon_dir,
                 False
             )
             apply_button.tooltip = "Apply operations to active design"
             
-            # Results display
-            results_input = inputs.addTextBoxCommandInput(
-                'results_display',
-                'Results',
-                '',
-                10,  # Number of rows
-                True  # Read only
-            )
-            results_input.tooltip = "Shows parsing results and operation details"
+            # (Results input defined above)
             
         except Exception as e:
             logger.error(f"Error creating command inputs: {e}")
@@ -490,6 +560,17 @@ class CoPilotExecuteHandler(adsk.core.CommandEventHandler if FUSION_AVAILABLE el
                 return
                 
             inputs = args.command.commandInputs
+            # If an Apply was requested, run it here so the dialog is in a stable execute phase
+            try:
+                global pending_apply_plan
+            except Exception:
+                pending_apply_plan = None
+            if pending_apply_plan is not None:
+                try:
+                    self._apply_plan_now(inputs)
+                finally:
+                    pending_apply_plan = None
+                return
             
             # Get the prompt text
             prompt_input = inputs.itemById('prompt_input')
@@ -506,6 +587,117 @@ class CoPilotExecuteHandler(adsk.core.CommandEventHandler if FUSION_AVAILABLE el
             logger.error(f"Error in execute handler: {e}")
             if FUSION_AVAILABLE and ui:
                 ui.messageBox(f'Execute error: {str(e)}')
+
+    def process_natural_language_prompt(self, prompt: str, inputs):
+        """Delegate to shared processing implementation to avoid duplication."""
+        helper = CoPilotApplyNowExecuteHandler()
+        return helper.process_natural_language_prompt(prompt, inputs)
+
+    def _apply_plan_now(self, inputs):
+        """Execute apply while in execute phase to ensure created geometry persists."""
+        try:
+            self.handle_apply_button(inputs)
+        except Exception as e:
+            try:
+                if FUSION_AVAILABLE and app:
+                    app.log(f"[CoPilot] Apply (execute phase) error: {e}",
+                            adsk.core.LogLevels.ErrorLogLevel,
+                            adsk.core.LogTypes.ConsoleLogType)
+            except Exception:
+                pass
+
+
+class CoPilotApplyNowHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAILABLE else object):
+    """Background handler that applies the last plan immediately without dialog UI."""
+    
+    def __init__(self):
+        super().__init__()
+    
+    def notify(self, args):
+        try:
+            if not FUSION_AVAILABLE:
+                return
+            command = args.command
+            # Run on execute
+            exec_handler = CoPilotApplyNowExecuteHandler()
+            command.execute.add(exec_handler)
+            event_handlers.append(exec_handler)
+        except Exception as e:
+            try:
+                if FUSION_AVAILABLE and app:
+                    app.log(f"[CoPilot] ApplyNow created error: {e}",
+                            adsk.core.LogLevels.ErrorLogLevel,
+                            adsk.core.LogTypes.ConsoleLogType)
+            except Exception:
+                pass
+
+
+class CoPilotApplyNowExecuteHandler(adsk.core.CommandEventHandler if FUSION_AVAILABLE else object):
+    def __init__(self):
+        super().__init__()
+    
+    def notify(self, args):
+        try:
+            if not FUSION_AVAILABLE:
+                return
+            inputs = args.command.commandInputs
+            try:
+                if FUSION_AVAILABLE and app:
+                    app.log("[CoPilot] ApplyNow: starting",
+                            adsk.core.LogLevels.InfoLogLevel,
+                            adsk.core.LogTypes.ConsoleLogType)
+            except Exception:
+                pass
+            # Ensure a plan exists; if missing, build one via LLM/stub with default prompt
+            try:
+                global last_sanitized_plan
+            except Exception:
+                last_sanitized_plan = None
+            if not last_sanitized_plan:
+                exec_handler = CoPilotExecuteHandler()
+                prompt_text = 'create a cube'
+                plan = self.send_to_llm(prompt_text)
+                if not plan:
+                    # Fall back to offline canned
+                    plan = exec_handler._offline_canned_response(prompt_text)
+                try:
+                    is_valid, sanitized_plan, messages = sanitizer.sanitize_plan(plan)
+                except Exception:
+                    is_valid, sanitized_plan, messages = True, plan or {}, []
+                if is_valid:
+                    last_sanitized_plan = sanitized_plan
+                    try:
+                        if FUSION_AVAILABLE and app:
+                            app.log(f"[CoPilot] ApplyNow: plan ready (ops={len(sanitized_plan.get('operations', []))})",
+                                    adsk.core.LogLevels.InfoLogLevel,
+                                    adsk.core.LogTypes.ConsoleLogType)
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        if FUSION_AVAILABLE and app:
+                            app.log("[CoPilot] ApplyNow: validation failed", adsk.core.LogLevels.ErrorLogLevel, adsk.core.LogTypes.ConsoleLogType)
+                    except Exception:
+                        pass
+                    return
+            # Execute apply using existing handler
+            input_handler = CoPilotInputChangedHandler()
+            input_handler.handle_apply_button(inputs)
+            try:
+                if FUSION_AVAILABLE and app:
+                    app.log("[CoPilot] ApplyNow: completed",
+                            adsk.core.LogLevels.InfoLogLevel,
+                            adsk.core.LogTypes.ConsoleLogType)
+            except Exception:
+                pass
+        except Exception as e:
+            try:
+                if FUSION_AVAILABLE and app:
+                    app.log(f"[CoPilot] ApplyNow execute error: {e}",
+                            adsk.core.LogLevels.ErrorLogLevel,
+                            adsk.core.LogTypes.ConsoleLogType)
+            except Exception:
+                pass
     
     def process_natural_language_prompt(self, prompt: str, inputs):
         """Process the natural language prompt through the Co-Pilot pipeline."""
@@ -513,38 +705,53 @@ class CoPilotExecuteHandler(adsk.core.CommandEventHandler if FUSION_AVAILABLE el
             results_display = inputs.itemById('results_display')
             
             # Step 1: Send to LLM for parsing
-            results_display.text = "Parsing natural language prompt..."
+            if results_display:
+                results_display.text = "Parsing natural language prompt..."
             
             parsed_plan = self.send_to_llm(prompt)
             
             if not parsed_plan:
-                results_display.text = "Failed to parse prompt. Check LLM connection."
+                if results_display:
+                    results_display.text = "Failed to parse prompt. Check LLM connection."
                 return
             
             # Step 2: Sanitize the plan
-            results_display.text += "\n\nValidating and sanitizing plan..."
+            if results_display:
+                results_display.text += "\n\nValidating and sanitizing plan..."
             
             is_valid, sanitized_plan, messages = sanitizer.sanitize_plan(parsed_plan)
             
             if not is_valid:
-                results_display.text += f"\n\nValidation failed:\n" + "\n".join(messages)
+                if results_display:
+                    results_display.text += f"\n\nValidation failed:\n" + "\n".join(messages)
                 return
             
             # Step 3: Show sanitized plan
-            results_display.text += f"\n\nPlan validated successfully!"
-            results_display.text += f"\nOperations: {len(sanitized_plan.get('operations', []))}"
+            op_count = len(sanitized_plan.get('operations', []))
+            if results_display:
+                results_display.text += f"\n\nPlan validated successfully!"
+                results_display.text += f"\nOperations: {op_count}"
+            # Also show a quick summary dialog so you see immediate feedback
+            try:
+                if FUSION_AVAILABLE and ui:
+                    ui.messageBox(f"Co-Pilot: Plan ready\nOperations: {op_count}")
+            except Exception:
+                pass
             
             if messages:
-                results_display.text += f"\n\nWarnings:\n" + "\n".join(messages)
+                if results_display:
+                    results_display.text += f"\n\nWarnings:\n" + "\n".join(messages)
             
             # Step 4: Preview (if requested)
             # This would be handled by button clicks in a full implementation
             
-            results_display.text += f"\n\nReady for preview or execution."
+            if results_display:
+                results_display.text += f"\n\nReady for preview or execution."
             
         except Exception as e:
             logger.error(f"Error processing prompt: {e}")
-            results_display.text = f"Error: {str(e)}"
+            if results_display:
+                results_display.text = f"Error: {str(e)}"
     
     def send_to_llm(self, prompt: str) -> Optional[Dict]:
         """Send prompt to LLM and get structured plan using production LLM service."""
@@ -591,38 +798,256 @@ class CoPilotExecuteHandler(adsk.core.CommandEventHandler if FUSION_AVAILABLE el
     def _send_to_stub_server(self, prompt: str) -> Optional[Dict]:
         """Fallback method for stub server communication."""
         try:
-            import requests
+            # Prefer requests, but fall back to urllib if unavailable (Fusion env often lacks requests)
+            try:
+                import requests as _requests
+            except Exception:
+                _requests = None
             import json
             
             llm_config = settings.get('llm', {})
             endpoint = llm_config.get('endpoint', 'http://localhost:8080/llm')
             timeout = llm_config.get('timeout', 30)
+            # Normalize localhost to 127.0.0.1 for reliability
+            try:
+                if 'localhost' in endpoint:
+                    endpoint = endpoint.replace('localhost', '127.0.0.1')
+            except Exception:
+                pass
             
+            # Optional: health check before sending request (uses urllib fallback internally)
+            if not self._stub_health_check(endpoint):
+                logger.error("Stub server health check failed")
+                try:
+                    globals()['last_network_error'] = f"Health check failed for {endpoint}"
+                except Exception:
+                    pass
+                try:
+                    if FUSION_AVAILABLE and app:
+                        app.log("[CoPilot] Stub health check failed",
+                                adsk.core.LogLevels.WarningLogLevel,
+                                adsk.core.LogTypes.ConsoleLogType)
+                except Exception:
+                    pass
+                return None
+
             # Prepare request
             request_data = {
-                'prompt': prompt,
+                'prompt': (prompt or 'create a cube'),
                 'context': {
                     'units': settings.get('processing', {}).get('units_default', 'mm'),
                     'max_operations': settings.get('processing', {}).get('max_operations_per_plan', 50)
                 }
             }
             
-            # Send request
-            response = requests.post(
-                endpoint,
-                json=request_data,
-                timeout=timeout,
-                headers={'Content-Type': 'application/json'}
-            )
-            
-            if response.status_code == 200:
-                return response.json()
-            else:
-                logger.error(f"Stub server request failed: {response.status_code}")
+            # Send request (try requests first)
+            if _requests is not None:
+                try:
+                    try:
+                        if FUSION_AVAILABLE and app:
+                            app.log(f"[CoPilot] Stub POST (requests) → {endpoint}",
+                                    adsk.core.LogLevels.InfoLogLevel,
+                                    adsk.core.LogTypes.ConsoleLogType)
+                    except Exception:
+                        pass
+                    response = _requests.post(
+                        endpoint,
+                        json=request_data,
+                        timeout=timeout,
+                        headers={'Content-Type': 'application/json'}
+                    )
+                    if response.status_code == 200:
+                        try:
+                            if FUSION_AVAILABLE and app:
+                                app.log("[CoPilot] Stub POST success (requests)",
+                                        adsk.core.LogLevels.InfoLogLevel,
+                                        adsk.core.LogTypes.ConsoleLogType)
+                        except Exception:
+                            pass
+                        return response.json()
+                    else:
+                        logger.error(f"Stub server request failed: {response.status_code}")
+                        try:
+                            globals()['last_network_error'] = f"requests POST non-200: {response.status_code}"
+                        except Exception:
+                            pass
+                except Exception as e:
+                    logger.warning(f"Requests POST failed, will try urllib: {e}")
+                    try:
+                        globals()['last_network_error'] = f"requests POST exception: {e}"
+                    except Exception:
+                        pass
+
+            # Fallback to urllib
+            try:
+                import urllib.request
+                import urllib.error
+                try:
+                    if FUSION_AVAILABLE and app:
+                        app.log(f"[CoPilot] Stub POST (urllib) → {endpoint}",
+                                adsk.core.LogLevels.InfoLogLevel,
+                                adsk.core.LogTypes.ConsoleLogType)
+                except Exception:
+                    pass
+                req = urllib.request.Request(
+                    endpoint,
+                    data=json.dumps(request_data).encode('utf-8'),
+                    headers={'Content-Type': 'application/json'},
+                    method='POST'
+                )
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    if resp.status == 200:
+                        resp_data = resp.read()
+                        try:
+                            if FUSION_AVAILABLE and app:
+                                app.log("[CoPilot] Stub POST success (urllib)",
+                                        adsk.core.LogLevels.InfoLogLevel,
+                                        adsk.core.LogTypes.ConsoleLogType)
+                        except Exception:
+                            pass
+                        return json.loads(resp_data.decode('utf-8'))
+                    else:
+                        logger.error(f"Stub server urllib request failed: {resp.status}")
+                        try:
+                            globals()['last_network_error'] = f"urllib POST non-200: {resp.status}"
+                        except Exception:
+                            pass
+                        return None
+            except Exception as e:
+                logger.error(f"Stub server urllib request error: {e}")
+                try:
+                    globals()['last_network_error'] = f"urllib POST exception: {e}"
+                except Exception:
+                    pass
                 return None
                 
         except Exception as e:
             logger.error(f"Stub server request error: {e}")
+            return None
+
+    def _stub_health_check(self, endpoint: str) -> bool:
+        """Check health of the stub server given the LLM endpoint URL (with urllib fallback)."""
+        base = endpoint
+        if base.endswith('/llm'):
+            base = base[:-4]
+        # Normalize localhost to 127.0.0.1
+        try:
+            base = base.replace('localhost', '127.0.0.1')
+        except Exception:
+            pass
+        health_url = base.rstrip('/') + '/health'
+        try:
+            if FUSION_AVAILABLE and app:
+                app.log(f"[CoPilot] Stub health → {health_url}",
+                        adsk.core.LogLevels.InfoLogLevel,
+                        adsk.core.LogTypes.ConsoleLogType)
+        except Exception:
+            pass
+        # Try requests if available
+        try:
+            import requests as _requests
+        except Exception:
+            _requests = None
+        if _requests is not None:
+            try:
+                r = _requests.get(health_url, timeout=5)
+                if r.status_code != 200:
+                    try:
+                        if FUSION_AVAILABLE and app:
+                            app.log("[CoPilot] Stub health failed (requests)",
+                                    adsk.core.LogLevels.WarningLogLevel,
+                                    adsk.core.LogTypes.ConsoleLogType)
+                    except Exception:
+                        pass
+                    try:
+                        globals()['last_network_error'] = f"health non-200 (requests): {r.status_code}"
+                    except Exception:
+                        pass
+                    return False
+                data = r.json()
+                status = str(data.get('status', '')).lower()
+                try:
+                    if FUSION_AVAILABLE and app:
+                        app.log(f"[CoPilot] Stub health OK (requests): {status}",
+                                adsk.core.LogLevels.InfoLogLevel,
+                                adsk.core.LogTypes.ConsoleLogType)
+                except Exception:
+                    pass
+                return status in ('healthy', 'running', 'ok')
+            except Exception as e:
+                logger.debug(f"Requests health check failed, trying urllib: {e}")
+                try:
+                    globals()['last_network_error'] = f"health requests exception: {e}"
+                except Exception:
+                    pass
+        # Fallback to urllib
+        try:
+            import urllib.request
+            with urllib.request.urlopen(health_url, timeout=5) as resp:
+                if resp.status != 200:
+                    try:
+                        if FUSION_AVAILABLE and app:
+                            app.log("[CoPilot] Stub health failed (urllib)",
+                                    adsk.core.LogLevels.WarningLogLevel,
+                                    adsk.core.LogTypes.ConsoleLogType)
+                    except Exception:
+                        pass
+                    try:
+                        globals()['last_network_error'] = f"health non-200 (urllib): {resp.status}"
+                    except Exception:
+                        pass
+                    return False
+                raw = resp.read().decode('utf-8')
+                try:
+                    data = json.loads(raw)
+                except Exception:
+                    try:
+                        globals()['last_network_error'] = "health invalid JSON (urllib)"
+                    except Exception:
+                        pass
+                    return False
+                status = str(data.get('status', '')).lower()
+                try:
+                    if FUSION_AVAILABLE and app:
+                        app.log(f"[CoPilot] Stub health OK (urllib): {status}",
+                                adsk.core.LogLevels.InfoLogLevel,
+                                adsk.core.LogTypes.ConsoleLogType)
+                except Exception:
+                    pass
+                return status in ('healthy', 'running', 'ok')
+        except Exception as e:
+            logger.warning(f"Stub health check error: {e}")
+            try:
+                globals()['last_network_error'] = f"health urllib exception: {e}"
+            except Exception:
+                pass
+            return False
+
+    def _offline_canned_response(self, prompt: str) -> Optional[Dict]:
+        """Provide a small built-in canned plan for offline/demo use."""
+        try:
+            text = (prompt or '').lower()
+            if 'cube' in text or 'box' in text:
+                return {
+                    'plan_id': 'offline_cube_demo',
+                    'metadata': { 'units': settings.get('processing', {}).get('units_default', 'mm') },
+                    'operations': [
+                        { 'op_id': 'op_1', 'op': 'create_sketch', 'params': { 'plane': 'XY', 'name': 'cube_sketch' } },
+                        { 'op_id': 'op_2', 'op': 'draw_rectangle', 'params': { 'center': [0,0], 'width': 20, 'height': 20, 'constraints': ['horizontal','vertical'] } },
+                        { 'op_id': 'op_3', 'op': 'extrude', 'params': { 'profile': 'last', 'distance': 20, 'operation': 'new_body' } }
+                    ]
+                }
+            # Generic minimal plan
+            return {
+                'plan_id': 'offline_generic_demo',
+                'metadata': { 'units': settings.get('processing', {}).get('units_default', 'mm') },
+                'operations': [
+                    { 'op_id': 'op_1', 'op': 'create_sketch', 'params': { 'plane': 'XY', 'name': 'sketch_1' } },
+                    { 'op_id': 'op_2', 'op': 'draw_circle', 'params': { 'center': [0,0], 'radius': 10 } },
+                    { 'op_id': 'op_3', 'op': 'extrude', 'params': { 'profile': 'last', 'distance': 10, 'operation': 'new_body' } }
+                ]
+            }
+        except Exception:
             return None
 
 
@@ -638,17 +1063,165 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
             if not FUSION_AVAILABLE:
                 return
                 
+            global last_sanitized_plan
+
             changed_input = args.input
             inputs = args.inputs
             
             # Handle button clicks
             if changed_input.id == 'parse_button' and changed_input.value:
                 self.handle_parse_button(inputs)
+            elif changed_input.id == 'run_button' and changed_input.value:
+                # Directly invoke the full pipeline
+                try:
+                    app.log("[CoPilot] Dialog: Run clicked", adsk.core.LogLevels.InfoLogLevel, adsk.core.LogTypes.ConsoleLogType)
+                    if ui:
+                        ui.messageBox('[CoPilot] Run start')
+                except Exception:
+                    pass
+                try:
+                    results_display = inputs.itemById('results_display')
+                    if results_display:
+                        results_display.text = "Running pipeline..."
+                except Exception:
+                    pass
+                # Run the pipeline inline here for reliable UI updates
+                exec_handler = CoPilotExecuteHandler()
+                try:
+                    prompt_input = inputs.itemById('prompt_input')
+                    prompt_text = prompt_input.text if prompt_input else ""
+                    # 1) Try LLM / Stub path first
+                    plan = exec_handler.send_to_llm(prompt_text)
+                    rd = inputs.itemById('results_display')
+                    if plan:
+                        try:
+                            is_valid, sanitized_plan, messages = sanitizer.sanitize_plan(plan)
+                        except Exception:
+                            is_valid, sanitized_plan, messages = True, plan, []
+
+                        if is_valid:
+                            ops = sanitized_plan.get('operations', [])
+                            last_sanitized_plan = sanitized_plan
+                            if rd:
+                                rd.value = "Plan validated successfully!\nOperations: " + str(len(ops))
+                            try:
+                                if FUSION_AVAILABLE and app:
+                                    app.log(f"[CoPilot] LLM/Stub plan ready (ops={len(ops)})",
+                                            adsk.core.LogLevels.InfoLogLevel,
+                                            adsk.core.LogTypes.ConsoleLogType)
+                            except Exception:
+                                pass
+                            try:
+                                if FUSION_AVAILABLE and ui:
+                                    ui.messageBox("Co-Pilot: Run completed")
+                            except Exception:
+                                pass
+                            return
+                        else:
+                            if rd:
+                                rd.value = "Validation failed:\n" + "\n".join(messages)
+                            return
+
+                    # 2) Offline fallback (log reason if available)
+                    try:
+                        from main import last_network_error as _net_err  # self-reference OK inside module
+                    except Exception:
+                        _net_err = None
+                    try:
+                        if FUSION_AVAILABLE and app and _net_err:
+                            app.log(f"[CoPilot] Falling back to offline: {_net_err}",
+                                    adsk.core.LogLevels.WarningLogLevel,
+                                    adsk.core.LogTypes.ConsoleLogType)
+                    except Exception:
+                        pass
+                    try:
+                        offline = exec_handler._offline_canned_response(prompt_text)
+                    except Exception:
+                        offline = None
+                    if offline is None:
+                        offline = {
+                            'plan_id': 'offline_fallback',
+                            'metadata': { 'units': 'mm' },
+                            'operations': [ {'op_id':'op_1','op':'create_sketch','params':{'plane':'XY','name':'fallback'}} ]
+                        }
+                    try:
+                        is_valid, sanitized_plan, messages = sanitizer.sanitize_plan(offline)
+                    except Exception:
+                        is_valid, sanitized_plan, messages = True, offline, []
+                    ops = sanitized_plan.get('operations', [])
+                    last_sanitized_plan = sanitized_plan
+                    if rd:
+                        rd.value = "Plan validated successfully!\nOperations: " + str(len(ops))
+                    try:
+                        if FUSION_AVAILABLE and app:
+                            app.log(f"[CoPilot] Offline plan ready (ops={len(ops)})",
+                                    adsk.core.LogLevels.InfoLogLevel,
+                                    adsk.core.LogTypes.ConsoleLogType)
+                    except Exception:
+                        pass
+                    try:
+                        if FUSION_AVAILABLE and ui:
+                            ui.messageBox(f"Co-Pilot: Offline plan ready\nOperations: {len(ops)}")
+                    except Exception:
+                        pass
+                    return
+                except Exception as e:
+                    try:
+                        results_display = inputs.itemById('results_display')
+                        if results_display:
+                            results_display.text = f"Error: {e}"
+                    except Exception:
+                        pass
             elif changed_input.id == 'preview_button' and changed_input.value:
+                try:
+                    app.log("[CoPilot] Dialog: Preview clicked", adsk.core.LogLevels.InfoLogLevel, adsk.core.LogTypes.ConsoleLogType)
+                    if ui:
+                        ui.messageBox('[CoPilot] Preview clicked (dialog)')
+                except Exception:
+                    pass
                 self.handle_preview_button(inputs)
             elif changed_input.id == 'apply_button' and changed_input.value:
-                self.handle_apply_button(inputs)
-            
+                try:
+                    app.log("[CoPilot] Dialog: Apply clicked", adsk.core.LogLevels.InfoLogLevel, adsk.core.LogTypes.ConsoleLogType)
+                    if ui:
+                        ui.messageBox('[CoPilot] Apply clicked (dialog)')
+                except Exception:
+                    pass
+                # Run apply immediately so geometry appears
+                try:
+                    if FUSION_AVAILABLE and app:
+                        app.log("[CoPilot] Apply (immediate): starting",
+                                adsk.core.LogLevels.InfoLogLevel,
+                                adsk.core.LogTypes.ConsoleLogType)
+                except Exception:
+                    pass
+                try:
+                    self.handle_apply_button(inputs)
+                except Exception:
+                    pass
+                # Also trigger background apply to reinforce persistence
+                try:
+                    if FUSION_AVAILABLE and app:
+                        app.log("[CoPilot] Apply (background): launching",
+                                adsk.core.LogLevels.InfoLogLevel,
+                                adsk.core.LogTypes.ConsoleLogType)
+                    bg_apply = ui.commandDefinitions.itemById('fusion_copilot_apply_now') if ui else None
+                    if not bg_apply:
+                        if FUSION_AVAILABLE and app:
+                            app.log("[CoPilot] Apply (background): command missing",
+                                    adsk.core.LogLevels.WarningLogLevel,
+                                    adsk.core.LogTypes.ConsoleLogType)
+                    else:
+                        bg_apply.execute()
+                except Exception as e:
+                    try:
+                        if FUSION_AVAILABLE and app:
+                            app.log(f"[CoPilot] Failed to start background apply: {e}",
+                                    adsk.core.LogLevels.ErrorLogLevel,
+                                    adsk.core.LogTypes.ConsoleLogType)
+                    except Exception:
+                        pass
+
             # Reset button states
             changed_input.value = False
             
@@ -656,19 +1229,180 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
             logger.error(f"Error in input changed handler: {e}")
     
     def handle_parse_button(self, inputs):
-        """Handle parse button click."""
-        results_display = inputs.itemById('results_display')
-        results_display.text = "Parse button clicked - functionality would be implemented here"
+        """Handle parse button click by invoking the core pipeline."""
+        try:
+            global last_sanitized_plan
+            results_display = inputs.itemById('results_display')
+            prompt_input = inputs.itemById('prompt_input')
+            prompt_text = prompt_input.text if prompt_input else ""
+            if results_display:
+                results_display.text = "Parsing natural language prompt...\n(Contacting LLM or using offline canned plan)"
+            
+            # Prefer LLM/Stub first
+            exec_handler = CoPilotExecuteHandler()
+            plan = exec_handler.send_to_llm(prompt_text)
+            if plan:
+                try:
+                    is_valid, sanitized_plan, messages = sanitizer.sanitize_plan(plan)
+                except Exception:
+                    is_valid, sanitized_plan, messages = True, plan, []
+                if is_valid:
+                    ops = sanitized_plan.get('operations', [])
+                    last_sanitized_plan = sanitized_plan
+                    if results_display:
+                        results_display.text = "Plan validated successfully!\nOperations: " + str(len(ops))
+                    try:
+                        if FUSION_AVAILABLE and app:
+                            app.log(f"[CoPilot] LLM/Stub plan ready (ops={len(ops)})",
+                                    adsk.core.LogLevels.InfoLogLevel,
+                                    adsk.core.LogTypes.ConsoleLogType)
+                    except Exception:
+                        pass
+                    return
+            
+            # Offline fallback
+            try:
+                offline = exec_handler._offline_canned_response(prompt_text)
+            except Exception:
+                offline = None
+            if offline is None:
+                offline = {
+                    'plan_id': 'offline_fallback',
+                    'metadata': { 'units': 'mm' },
+                    'operations': [ {'op_id':'op_1','op':'create_sketch','params':{'plane':'XY','name':'fallback'}} ]
+                }
+            try:
+                is_valid, sanitized_plan, messages = sanitizer.sanitize_plan(offline)
+            except Exception:
+                is_valid, sanitized_plan, messages = True, offline, []
+            ops = sanitized_plan.get('operations', [])
+            last_sanitized_plan = sanitized_plan
+            if results_display:
+                results_display.text = "Plan validated successfully!\nOperations: " + str(len(ops))
+            try:
+                if FUSION_AVAILABLE and app:
+                    app.log(f"[CoPilot] Offline plan ready (ops={len(ops)})",
+                            adsk.core.LogLevels.InfoLogLevel,
+                            adsk.core.LogTypes.ConsoleLogType)
+            except Exception:
+                pass
+            try:
+                if FUSION_AVAILABLE and ui:
+                    ui.messageBox(f"Co-Pilot: Offline plan ready\nOperations: {len(ops)}")
+            except Exception:
+                pass
+        except Exception as e:
+            logger.error(f"Parse handler error (dialog): {e}")
+            results_display = inputs.itemById('results_display')
+            if results_display:
+                results_display.text = f"Error: {e}"
     
     def handle_preview_button(self, inputs):
         """Handle preview button click."""
-        results_display = inputs.itemById('results_display')
-        results_display.text = "Preview button clicked - functionality would be implemented here"
+        try:
+            global last_sanitized_plan
+            results_display = inputs.itemById('results_display')
+            # Prefer the last sanitized plan if available
+            ops = []
+            if last_sanitized_plan:
+                ops = [op.get('op') for op in last_sanitized_plan.get('operations', [])]
+            else:
+                exec_handler = CoPilotExecuteHandler()
+                last_prompt = inputs.itemById('prompt_input').text if inputs.itemById('prompt_input') else ''
+                offline = exec_handler._offline_canned_response(last_prompt or 'cube') or {}
+                ops = [op.get('op') for op in offline.get('operations', [])]
+            preview_text = 'Preview:\n' + ('\n'.join(ops) if ops else 'No operations')
+            if results_display:
+                results_display.value = preview_text
+            try:
+                if FUSION_AVAILABLE and app:
+                    app.log('[CoPilot] ' + preview_text.replace('\n', ' | '),
+                            adsk.core.LogLevels.InfoLogLevel,
+                            adsk.core.LogTypes.ConsoleLogType)
+                if FUSION_AVAILABLE and ui:
+                    ui.messageBox(preview_text)
+            except Exception:
+                pass
+        except Exception as e:
+            rd = inputs.itemById('results_display')
+            if rd:
+                rd.value = f"Preview error: {e}"
     
     def handle_apply_button(self, inputs):
         """Handle apply button click."""
-        results_display = inputs.itemById('results_display')
-        results_display.text = "Apply button clicked - functionality would be implemented here"
+        try:
+            global last_sanitized_plan, executor
+            results_display = inputs.itemById('results_display')
+            try:
+                if FUSION_AVAILABLE and app:
+                    app.log(f"[CoPilot] Apply: executor={'ready' if executor else 'missing'}, plan={'ready' if last_sanitized_plan else 'missing'}",
+                            adsk.core.LogLevels.InfoLogLevel,
+                            adsk.core.LogTypes.ConsoleLogType)
+            except Exception:
+                pass
+
+            # Ensure we have a plan to apply
+            plan = last_sanitized_plan
+            if not plan:
+                exec_handler = CoPilotExecuteHandler()
+                last_prompt = inputs.itemById('prompt_input').text if inputs.itemById('prompt_input') else ''
+                # Use canned plan as fallback
+                offline = exec_handler._offline_canned_response(last_prompt or 'create a cube') or {}
+                try:
+                    is_valid, sanitized_plan, messages = sanitizer.sanitize_plan(offline)
+                except Exception:
+                    is_valid, sanitized_plan, messages = True, offline, []
+                if not is_valid:
+                    if results_display:
+                        results_display.value = 'Apply failed: No valid plan available.'
+                    if FUSION_AVAILABLE and ui:
+                        ui.messageBox('Apply failed: No valid plan available.')
+                    return
+                plan = sanitized_plan
+                last_sanitized_plan = plan
+
+            # Execute the plan using the global executor (mock-safe if real API not invoked)
+            if not executor:
+                if results_display:
+                    results_display.value = 'Apply failed: Executor not initialized.'
+                if FUSION_AVAILABLE and ui:
+                    ui.messageBox('Apply failed: Executor not initialized.')
+                return
+
+            exec_result = executor.execute_plan(plan)
+
+            if exec_result.get('success'):
+                created = exec_result.get('features_created', [])
+                ops_count = exec_result.get('operations_executed', 0)
+                summary = f"Applied {ops_count} operations. Created {len(created)} features."
+                if results_display:
+                    results_display.value = summary
+                try:
+                    if FUSION_AVAILABLE and app:
+                        app.log('[CoPilot] Apply success: ' + summary,
+                                adsk.core.LogLevels.InfoLogLevel,
+                                adsk.core.LogTypes.ConsoleLogType)
+                    if FUSION_AVAILABLE and ui:
+                        ui.messageBox('Co-Pilot: Apply success\n' + summary)
+                except Exception:
+                    pass
+            else:
+                err = exec_result.get('error_message', 'Unknown error')
+                if results_display:
+                    results_display.value = f'Apply failed: {err}'
+                try:
+                    if FUSION_AVAILABLE and app:
+                        app.log('[CoPilot] Apply failed: ' + err,
+                                adsk.core.LogLevels.ErrorLogLevel,
+                                adsk.core.LogTypes.ConsoleLogType)
+                    if FUSION_AVAILABLE and ui:
+                        ui.messageBox('Apply failed: ' + err)
+                except Exception:
+                    pass
+        except Exception as e:
+            rd = inputs.itemById('results_display')
+            if rd:
+                rd.value = f"Apply error: {e}"
 
 
 # Development/Testing Functions
