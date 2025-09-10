@@ -885,8 +885,15 @@ class CoPilotHTMLEventHandler(adsk.core.HTMLEventHandler if FUSION_AVAILABLE els
                 return
                 
             html_args = adsk.core.HTMLEventArgs.cast(args)
-            data = json.loads(html_args.data)
-            action = data.get('action')
+            # Prefer action from event args; fallback to JSON payload
+            action = getattr(html_args, 'action', None)
+            raw = getattr(html_args, 'data', '') or '{}'
+            try:
+                data = json.loads(raw)
+            except Exception:
+                data = {}
+            if not action:
+                action = data.get('action')
             
             logger.debug(f"HTML event received: {action}")
             
