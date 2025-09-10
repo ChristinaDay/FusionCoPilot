@@ -165,7 +165,7 @@ class CoPilotUI:
                 True,  # isResizable
                 400,   # width
                 600,   # height
-                False   # useNewWebBrowser (legacy webview for reliable bridge)
+                True    # useNewWebBrowser (Chromium webview for adsk.fusionSendData)
             )
             print("[CoPilot] palettes.add: ok")
             
