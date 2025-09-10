@@ -100,6 +100,82 @@ def setup_logging():
 # Setup logging immediately
 setup_logging()
 logger = logging.getLogger(__name__)
+# Palette callback implementations
+def palette_parse_callback(prompt: str):
+    try:
+        # Build plan via LLM/stub and sanitize, then send to palette
+        exec_handler = CoPilotApplyNowExecuteHandler()
+        plan = exec_handler.send_to_llm(prompt) or CoPilotExecuteHandler()._offline_canned_response(prompt)
+        if not plan:
+            if copilot_ui:
+                copilot_ui.show_parse_result(False, error='No plan generated')
+            return
+        is_valid, sanitized_plan, messages = sanitizer.sanitize_plan(plan)
+        if not is_valid:
+            if copilot_ui:
+                copilot_ui.show_parse_result(False, error='Validation failed', warnings=messages)
+            return
+        # Persist for preview/apply
+        try:
+            globals()['last_sanitized_plan'] = sanitized_plan
+        except Exception:
+            pass
+        if copilot_ui:
+            copilot_ui.show_parse_result(True, plan=sanitized_plan, warnings=messages)
+    except Exception as e:
+        if copilot_ui:
+            copilot_ui.show_parse_result(False, error=str(e))
+
+
+def palette_preview_callback(plan: Dict):
+    try:
+        preview_start = datetime.now()
+        # Use provided plan or last
+        use_plan = plan or last_sanitized_plan
+        if not use_plan:
+            if copilot_ui:
+                copilot_ui.show_preview_result(False, error='No plan available to preview')
+            return
+        result = executor.preview_plan_in_sandbox(use_plan)
+        duration = (datetime.now() - preview_start).total_seconds()
+        if result.get('success'):
+            if copilot_ui:
+                copilot_ui.show_preview_result(True, preview_data=result.get('preview_data', {}), duration=duration)
+        else:
+            if copilot_ui:
+                copilot_ui.show_preview_result(False, error=result.get('error', 'Unknown error'))
+    except Exception as e:
+        if copilot_ui:
+            copilot_ui.show_preview_result(False, error=str(e))
+
+
+def palette_apply_callback(plan: Dict):
+    try:
+        use_plan = plan or last_sanitized_plan
+        if not use_plan:
+            # Try to generate one quickly
+            generated = CoPilotApplyNowExecuteHandler().send_to_llm('create a cube') or CoPilotExecuteHandler()._offline_canned_response('create a cube')
+            if generated:
+                is_valid, sanitized_plan, _ = sanitizer.sanitize_plan(generated)
+                if is_valid:
+                    try:
+                        globals()['last_sanitized_plan'] = sanitized_plan
+                    except Exception:
+                        pass
+                    use_plan = sanitized_plan
+        if not use_plan:
+            if copilot_ui:
+                copilot_ui.show_apply_result(False, error='No plan available to apply')
+            return
+        exec_result = executor.execute_plan(use_plan)
+        if copilot_ui:
+            if exec_result.get('success'):
+                copilot_ui.show_apply_result(True, execution_result=exec_result)
+            else:
+                copilot_ui.show_apply_result(False, error=exec_result.get('error_message', 'Unknown error'))
+    except Exception as e:
+        if copilot_ui:
+            copilot_ui.show_apply_result(False, error=str(e))
 
 
 def run(context):
@@ -392,6 +468,9 @@ def cleanup_ui_components():
                 copilot_control = create_panel.controls.itemById('fusion_copilot_open')
                 if copilot_control:
                     copilot_control.deleteMe()
+            # Cleanup palette
+            if copilot_ui:
+                copilot_ui.cleanup()
             
         logger.info("UI components cleaned up")
         
