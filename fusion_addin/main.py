@@ -103,17 +103,27 @@ logger = logging.getLogger(__name__)
 # Palette callback implementations
 def palette_parse_callback(prompt: str):
     try:
+        # Status: parsing started
+        if copilot_ui:
+            copilot_ui.update_status("Parsing (offline)", True)
+        try:
+            if FUSION_AVAILABLE and app:
+                app.log("[CoPilot] Palette: parse start", adsk.core.LogLevels.InfoLogLevel, adsk.core.LogTypes.ConsoleLogType)
+        except Exception:
+            pass
         # Offline-first: immediate canned plan to avoid any network/spin
         exec_handler = CoPilotExecuteHandler()
         plan = exec_handler._offline_canned_response(prompt) or CoPilotApplyNowExecuteHandler().send_to_llm(prompt)
         if not plan:
             if copilot_ui:
                 copilot_ui.show_parse_result(False, error='No plan generated')
+                copilot_ui.update_status("No plan generated", False)
             return
         is_valid, sanitized_plan, messages = sanitizer.sanitize_plan(plan)
         if not is_valid:
             if copilot_ui:
                 copilot_ui.show_parse_result(False, error='Validation failed', warnings=messages)
+                copilot_ui.update_status("Validation failed", False)
             return
         # Persist for preview/apply
         try:
@@ -122,9 +132,21 @@ def palette_parse_callback(prompt: str):
             pass
         if copilot_ui:
             copilot_ui.show_parse_result(True, plan=sanitized_plan, warnings=messages)
+            copilot_ui.update_status("Ready", False)
+        try:
+            if FUSION_AVAILABLE and app:
+                app.log(f"[CoPilot] Palette: parse ok (ops={len(sanitized_plan.get('operations', []))})", adsk.core.LogLevels.InfoLogLevel, adsk.core.LogTypes.ConsoleLogType)
+        except Exception:
+            pass
     except Exception as e:
         if copilot_ui:
             copilot_ui.show_parse_result(False, error=str(e))
+            copilot_ui.update_status("Error", False)
+        try:
+            if FUSION_AVAILABLE and app:
+                app.log(f"[CoPilot] Palette: parse error {e}", adsk.core.LogLevels.ErrorLogLevel, adsk.core.LogTypes.ConsoleLogType)
+        except Exception:
+            pass
 
 
 def palette_preview_callback(plan: Dict):
