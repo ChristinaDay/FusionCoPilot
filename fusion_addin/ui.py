@@ -69,6 +69,9 @@ class CoPilotUI:
         self.preview_callback: Optional[Callable] = None
         self.apply_callback: Optional[Callable] = None
         
+        # Keep event handlers alive to avoid GC
+        self._handlers = []
+
         logger.info("Co-Pilot UI initialized")
     
     def create_ui(self):
@@ -179,6 +182,11 @@ class CoPilotUI:
             
             # Add event handlers
             self._setup_palette_handlers()
+            # Announce bridge ready to HTML
+            try:
+                self.update_status("Bridge connected", False)
+            except Exception:
+                pass
             
         except Exception as e:
             logger.error(f"Failed to create palette: {e}")
@@ -706,10 +714,12 @@ Examples:
                 # Add HTML event handler
                 html_handler = CoPilotHTMLEventHandler(self)
                 self.palette.incomingFromHTML.add(html_handler)
+                self._handlers.append(html_handler)
                 
                 # Add closed event handler
                 closed_handler = CoPilotPaletteClosedHandler()
                 self.palette.closed.add(closed_handler)
+                self._handlers.append(closed_handler)
                 
         except Exception as e:
             logger.error(f"Failed to setup palette handlers: {e}")
@@ -891,6 +901,10 @@ class CoPilotHTMLEventHandler(adsk.core.HTMLEventHandler if FUSION_AVAILABLE els
             elif action == 'apply' and self.ui_controller.apply_callback:
                 plan = data.get('plan')
                 self.ui_controller.apply_callback(plan)
+            
+            elif action == 'ping':
+                # Respond with a status update to prove the bridge works
+                self.ui_controller.update_status("Bridge OK", False)
                 
         except Exception as e:
             logger.error(f"Error handling HTML event: {e}")

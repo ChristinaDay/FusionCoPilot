@@ -281,7 +281,10 @@ Examples:
             <span class="spinner" id="loadingSpinner"></span>
             <span id="statusText">Ready</span>
         </div>
-        <div id="connectionStatus">🟢 Local Mode</div>
+        <div>
+            <button id="pingBtn" class="btn btn-secondary" style="padding:4px 8px;">Ping Fusion</button>
+            <span id="connectionStatus">🟢 Local Mode</span>
+        </div>
     </div>
     
     <script>
@@ -303,6 +306,7 @@ Examples:
         parseBtn.addEventListener('click', handleParse);
         previewBtn.addEventListener('click', handlePreview);
         applyBtn.addEventListener('click', handleApply);
+        document.getElementById('pingBtn').addEventListener('click', handlePing);
         
         function setPrompt(text) {
             promptInput.value = text;
@@ -393,6 +397,19 @@ Examples:
             }
         }
         
+        function handlePing() {
+            try {
+                adsk.fusionSendData('ping', JSON.stringify({ action: 'ping' }));
+            } catch (e) {
+                if (window.fusionJavaScriptHandler && typeof window.fusionJavaScriptHandler.handle === 'function') {
+                    try { window.fusionJavaScriptHandler.handle('ping', JSON.stringify({ action: 'ping' })); }
+                    catch (err) { showMessage('Ping failed (legacy bridge).', 'error'); }
+                } else {
+                    showMessage('Bridge not available for ping.', 'error');
+                }
+            }
+        }
+        
         function showMessage(message, type = 'info') {
             resultsArea.textContent = message;
             addLogEntry(message, type);
@@ -443,6 +460,9 @@ Examples:
                     case 'error':
                         showMessage(`Error: ${data.message}`, 'error');
                         setProcessing(false);
+                        break;
+                    case 'status':
+                        statusText.textContent = data.status || 'Ready';
                         break;
                 }
             } catch (e) {
