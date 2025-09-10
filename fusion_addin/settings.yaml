@@ -106,7 +106,7 @@ ui:
   # Panel docking preference (left, right, bottom, floating)
   default_dock_position: "right"
   # Enable HTML palette UI (set false to use stable command dialog only)
-  enable_palette: false
+  enable_palette: true
   
   # Show operation details in action log
   show_detailed_log: true
