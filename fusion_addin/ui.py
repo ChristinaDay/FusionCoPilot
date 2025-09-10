@@ -142,7 +142,8 @@ class CoPilotUI:
         try:
             # Use static HTML file from resources and add a cache-busting query
             base_dir = os.path.dirname(os.path.abspath(__file__))
-            html_file_path = os.path.join(base_dir, 'resources', 'palette', 'index.html')
+            # TEMP: Point to bridge_test to diagnose event delivery
+            html_file_path = os.path.join(base_dir, 'resources', 'palette', 'bridge_test.html')
             if not os.path.exists(html_file_path):
                 raise FileNotFoundError(f"Palette HTML not found: {html_file_path}")
 
@@ -165,7 +166,7 @@ class CoPilotUI:
                 True,  # isResizable
                 400,   # width
                 600,   # height
-                True    # useNewWebBrowser (Chromium webview for adsk.fusionSendData)
+                False   # useNewWebBrowser (legacy webview for window.fusionJavaScriptHandler)
             )
             print("[CoPilot] palettes.add: ok")
             

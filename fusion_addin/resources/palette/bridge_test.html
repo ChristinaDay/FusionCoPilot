@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Co-Pilot Bridge Test</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padding: 16px; }
+    h1 { font-size: 16px; margin: 0 0 12px 0; }
+    .row { display: flex; gap: 8px; margin-bottom: 12px; }
+    button { padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; background: #f7f7f7; cursor: pointer; }
+    #status { padding: 10px; border: 1px solid #e0e0e0; background: #fafafa; border-radius: 6px; min-height: 60px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Co-Pilot Bridge Test</h1>
+  <div class="row">
+    <button id="pingLegacy">Ping (Legacy)</button>
+    <button id="pingNew">Ping (New)</button>
+    <button id="parseOffline">Parse Offline</button>
+  </div>
+  <div id="status">Ready</div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const pingLegacyBtn = document.getElementById('pingLegacy');
+    const pingNewBtn = document.getElementById('pingNew');
+    const parseOfflineBtn = document.getElementById('parseOffline');
+
+    function setStatus(text) {
+      statusEl.textContent = text;
+    }
+
+    function sendLegacy(name, payload) {
+      if (window.fusionJavaScriptHandler && typeof window.fusionJavaScriptHandler.handle === 'function') {
+        try { window.fusionJavaScriptHandler.handle(name, JSON.stringify(payload)); return true; }
+        catch (e) { console.error('Legacy send failed', e); return false; }
+      }
+      return false;
+    }
+
+    function sendNew(name, payload) {
+      try { adsk.fusionSendData(name, JSON.stringify(payload)); return true; }
+      catch (e) { console.error('New send failed', e); return false; }
+    }
+
+    pingLegacyBtn.addEventListener('click', () => {
+      const ok = sendLegacy('ping', { action: 'ping' });
+      if (!ok) setStatus('Legacy ping: no legacy bridge available');
+    });
+
+    pingNewBtn.addEventListener('click', () => {
+      const ok = sendNew('ping', { action: 'ping' });
+      if (!ok) setStatus('New ping: no new bridge available');
+    });
+
+    parseOfflineBtn.addEventListener('click', () => {
+      // Request offline parse using the same callback the app uses
+      const ok = sendLegacy('parse', { action: 'parse', prompt: 'create a cube' }) ||
+                 sendNew('parse', { action: 'parse', prompt: 'create a cube' });
+      if (!ok) setStatus('Neither bridge available for parse');
+    });
+
+    // Receive messages from Fusion
+    function handleFusionMessage(message) {
+      try {
+        const data = JSON.parse(message);
+        if (data.type === 'status') {
+          setStatus(data.status || 'Ready');
+        } else if (data.type === 'parseResult') {
+          setStatus(`Parse OK: operations=${(data.plan && data.plan.operations ? data.plan.operations.length : 0)}`);
+        } else if (data.type === 'error') {
+          setStatus(`Error: ${data.message}`);
+        } else {
+          setStatus(`Message: ${message}`);
+        }
+      } catch (e) {
+        setStatus('Failed to parse message from Fusion');
+      }
+    }
+
+    // Auto-ping both on load
+    setTimeout(() => { pingLegacyBtn.click(); }, 200);
+    setTimeout(() => { pingNewBtn.click(); }, 400);
+  </script>
+</body>
+</html>
