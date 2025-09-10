@@ -103,9 +103,9 @@ logger = logging.getLogger(__name__)
 # Palette callback implementations
 def palette_parse_callback(prompt: str):
     try:
-        # Build plan via LLM/stub and sanitize, then send to palette
-        exec_handler = CoPilotApplyNowExecuteHandler()
-        plan = exec_handler.send_to_llm(prompt) or CoPilotExecuteHandler()._offline_canned_response(prompt)
+        # Offline-first: immediate canned plan to avoid any network/spin
+        exec_handler = CoPilotExecuteHandler()
+        plan = exec_handler._offline_canned_response(prompt) or CoPilotApplyNowExecuteHandler().send_to_llm(prompt)
         if not plan:
             if copilot_ui:
                 copilot_ui.show_parse_result(False, error='No plan generated')
@@ -385,8 +385,15 @@ def create_ui_components():
     
     try:
         if FUSION_AVAILABLE and ui:
-            # TEMP: Disable palette UI; use command dialog only to avoid webview bridge issues
-            logger.info("Palette disabled; using command dialog only")
+            # Enable palette UI with minimal, reliable callbacks
+            copilot_ui = CoPilotUI(app, ui, settings)
+            copilot_ui.set_callbacks(
+                palette_parse_callback,
+                palette_preview_callback,
+                palette_apply_callback
+            )
+            copilot_ui.create_ui()
+            logger.info("Palette UI re-enabled (offline Parse)")
         else:
             logger.info("UI creation skipped (development mode)")
             
