@@ -243,8 +243,9 @@ Examples:
         
         <div class="button-group">
             <button id="parseBtn" class="btn btn-primary">🔍 Parse</button>
+            <button id="runBtn" class="btn btn-secondary">▶ Run</button>
             <button id="previewBtn" class="btn btn-secondary" disabled>👁️ Preview</button>
-            <button id="applyBtn" class="btn btn-success" disabled>✅ Apply</button>
+            <button id="applyBtn" class="btn btn_success" disabled>✅ Apply</button>
         </div>
         
         <div class="example-prompts">
@@ -304,6 +305,8 @@ Examples:
         
         // Event handlers
         parseBtn.addEventListener('click', handleParse);
+        const runBtn = document.getElementById('runBtn');
+        runBtn.addEventListener('click', handleRun);
         previewBtn.addEventListener('click', handlePreview);
         applyBtn.addEventListener('click', handleApply);
         document.getElementById('pingBtn').addEventListener('click', handlePing);
@@ -329,6 +332,26 @@ Examples:
                 if (window.fusionJavaScriptHandler && typeof window.fusionJavaScriptHandler.handle === 'function') {
                     try { window.fusionJavaScriptHandler.handle('parse', JSON.stringify({ action: 'parse', prompt: prompt })); }
                     catch (err) { console.error('Legacy parse failed', err); showMessage('Bridge error (legacy).', 'error'); setProcessing(false); }
+                } else {
+                    showMessage('Fusion bridge not available.', 'error');
+                    setProcessing(false);
+                }
+            }
+        }
+
+        function handleRun() {
+            const prompt = promptInput.value.trim();
+            if (!prompt) {
+                showMessage('Please enter a prompt describing what you want to create.', 'error');
+                return;
+            }
+            setProcessing(true, 'Running pipeline...');
+            try {
+                adsk.fusionSendData('run', JSON.stringify({ action: 'run', prompt: prompt }));
+            } catch (e) {
+                if (window.fusionJavaScriptHandler && typeof window.fusionJavaScriptHandler.handle === 'function') {
+                    try { window.fusionJavaScriptHandler.handle('run', JSON.stringify({ action: 'run', prompt: prompt })); }
+                    catch (err) { console.error('Legacy run failed', err); showMessage('Bridge error (legacy).', 'error'); setProcessing(false); }
                 } else {
                     showMessage('Fusion bridge not available.', 'error');
                     setProcessing(false);

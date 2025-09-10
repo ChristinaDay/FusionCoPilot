@@ -894,6 +894,12 @@ class CoPilotHTMLEventHandler(adsk.core.HTMLEventHandler if FUSION_AVAILABLE els
                 prompt = data.get('prompt', '')
                 self.ui_controller.parse_callback(prompt)
                 
+            elif action == 'run' and self.ui_controller.parse_callback:
+                # Treat run same as parse + immediate preview/apply readiness
+                prompt = data.get('prompt', '')
+                self.ui_controller.parse_callback(prompt)
+                # The Python side will send parseResult; UI can then enable buttons
+
             elif action == 'preview' and self.ui_controller.preview_callback:
                 plan = data.get('plan')
                 self.ui_controller.preview_callback(plan)
