@@ -385,15 +385,18 @@ def create_ui_components():
     
     try:
         if FUSION_AVAILABLE and ui:
-            # Enable palette UI with minimal, reliable callbacks
-            copilot_ui = CoPilotUI(app, ui, settings)
-            copilot_ui.set_callbacks(
-                palette_parse_callback,
-                palette_preview_callback,
-                palette_apply_callback
-            )
-            copilot_ui.create_ui()
-            logger.info("Palette UI re-enabled (offline Parse)")
+            enable_palette = settings.get('ui', {}).get('enable_palette', False)
+            if enable_palette:
+                copilot_ui = CoPilotUI(app, ui, settings)
+                copilot_ui.set_callbacks(
+                    palette_parse_callback,
+                    palette_preview_callback,
+                    palette_apply_callback
+                )
+                copilot_ui.create_ui()
+                logger.info("Palette UI enabled (offline-first Parse)")
+            else:
+                logger.info("Palette UI disabled by settings; using command dialog only")
         else:
             logger.info("UI creation skipped (development mode)")
             
