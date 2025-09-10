@@ -408,6 +408,25 @@ def register_commands():
     
     try:
         if FUSION_AVAILABLE and ui:
+            # If palette UI is active, avoid registering the dialog-based command
+            if copilot_ui is not None:
+                # Clean up any stale dialog command/button
+                try:
+                    existing = ui.commandDefinitions.itemById('fusion_copilot_open')
+                    if existing and existing.isValid:
+                        existing.deleteMe()
+                except Exception:
+                    pass
+                try:
+                    create_panel = ui.allToolbarPanels.itemById('SolidCreatePanel')
+                    if create_panel:
+                        stale = create_panel.controls.itemById('fusion_copilot_open')
+                        if stale and stale.isValid:
+                            stale.deleteMe()
+                except Exception:
+                    pass
+                logger.info("Palette active; skipped registering dialog command")
+                return
             # Force-rebuild the command definition each run to avoid UI caching
             existing = ui.commandDefinitions.itemById('fusion_copilot_open')
             if existing and existing.isValid:
