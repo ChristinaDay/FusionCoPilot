@@ -100,6 +100,31 @@ def setup_logging():
 # Setup logging immediately
 setup_logging()
 logger = logging.getLogger(__name__)
+
+# Offline plan builder for palette (decoupled from class methods)
+def _build_offline_plan(prompt: str) -> Dict:
+    text = (prompt or '').lower()
+    units = settings.get('processing', {}).get('units_default', 'mm')
+    if 'cube' in text or 'box' in text or not text:
+        return {
+            'plan_id': 'offline_cube_demo',
+            'metadata': { 'units': units },
+            'operations': [
+                { 'op_id': 'op_1', 'op': 'create_sketch', 'params': { 'plane': 'XY', 'name': 'CoPilot_cube_sketch' } },
+                { 'op_id': 'op_2', 'op': 'draw_rectangle', 'params': { 'center_point': { 'x': 0, 'y': 0, 'z': 0 }, 'width': { 'value': 20, 'unit': 'mm' }, 'height': { 'value': 20, 'unit': 'mm' } } },
+                { 'op_id': 'op_3', 'op': 'extrude', 'params': { 'profile': 'last', 'distance': { 'value': 20, 'unit': 'mm' }, 'operation': 'new_body' } }
+            ]
+        }
+    return {
+        'plan_id': 'offline_generic_demo',
+        'metadata': { 'units': units },
+        'operations': [
+            { 'op_id': 'op_1', 'op': 'create_sketch', 'params': { 'plane': 'XY', 'name': 'CoPilot_sketch' } },
+            { 'op_id': 'op_2', 'op': 'draw_circle', 'params': { 'center': [0,0], 'radius': 10 } },
+            { 'op_id': 'op_3', 'op': 'extrude', 'params': { 'profile': 'last', 'distance': 10, 'operation': 'new_body' } }
+        ]
+    }
+
 # Palette callback implementations
 def palette_parse_callback(prompt: str):
     try:
@@ -112,8 +137,7 @@ def palette_parse_callback(prompt: str):
         except Exception:
             pass
         # Offline-first: immediate canned plan to avoid any network/spin
-        exec_handler = CoPilotExecuteHandler()
-        plan = exec_handler._offline_canned_response(prompt) or CoPilotApplyNowExecuteHandler().send_to_llm(prompt)
+        plan = _build_offline_plan(prompt)
         if not plan:
             if copilot_ui:
                 copilot_ui.show_parse_result(False, error='No plan generated')
