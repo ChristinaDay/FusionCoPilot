@@ -385,7 +385,15 @@ def create_ui_components():
     
     try:
         if FUSION_AVAILABLE and ui:
-            enable_palette = settings.get('ui', {}).get('enable_palette', False)
+            enable_palette = settings.get('ui', {}).get('enable_palette', True)
+            try:
+                logger.info(f"UI mode → enable_palette={enable_palette}")
+                if app:
+                    app.log(f"[CoPilot] UI mode: palette={enable_palette}",
+                            adsk.core.LogLevels.InfoLogLevel,
+                            adsk.core.LogTypes.ConsoleLogType)
+            except Exception:
+                pass
             if enable_palette:
                 copilot_ui = CoPilotUI(app, ui, settings)
                 copilot_ui.set_callbacks(
@@ -411,8 +419,9 @@ def register_commands():
     
     try:
         if FUSION_AVAILABLE and ui:
-            # If palette UI is active, avoid registering the dialog-based command
-            if copilot_ui is not None:
+            # If palette UI is active per settings, avoid registering the dialog-based command
+            palette_active = settings.get('ui', {}).get('enable_palette', True)
+            if palette_active:
                 # Clean up any stale dialog command/button
                 try:
                     existing = ui.commandDefinitions.itemById('fusion_copilot_open')
