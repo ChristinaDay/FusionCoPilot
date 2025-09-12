@@ -676,6 +676,18 @@ class PlanExecutor:
                 target_face = None
 
             if not target_face:
+                # As a last resort, try to pick the last face from last created feature's body
+                try:
+                    root_comp = self.design.rootComponent
+                    bodies = root_comp.bRepBodies
+                    if bodies and bodies.count > 0:
+                        b = bodies.item(bodies.count - 1)
+                        faces = getattr(b, 'faces', None)
+                        if faces and faces.count > 0:
+                            target_face = faces.item(0)
+                except Exception:
+                    target_face = None
+            if not target_face:
                 raise ExecutionError("Select a target face for the hole and try again.")
 
             # Extract hole parameters

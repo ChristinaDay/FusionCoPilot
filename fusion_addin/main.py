@@ -1411,20 +1411,27 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                     self.handle_apply_button(inputs)
                 except Exception:
                     pass
-                # Also trigger background apply to reinforce persistence
+                # Also trigger background apply (skip for selection-dependent ops like holes)
                 try:
-                    if FUSION_AVAILABLE and app:
-                        app.log("[CoPilot] Apply (background): launching",
-                                adsk.core.LogLevels.InfoLogLevel,
-                                adsk.core.LogTypes.ConsoleLogType)
-                    bg_apply = ui.commandDefinitions.itemById('fusion_copilot_apply_now') if ui else None
-                    if not bg_apply:
+                    needs_selection = False
+                    try:
+                        ops = (last_sanitized_plan or {}).get('operations', [])
+                        needs_selection = any(op.get('op') in ('create_hole', 'fillet', 'chamfer') for op in ops)
+                    except Exception:
+                        needs_selection = False
+                    if not needs_selection:
                         if FUSION_AVAILABLE and app:
-                            app.log("[CoPilot] Apply (background): command missing",
-                                    adsk.core.LogLevels.WarningLogLevel,
+                            app.log("[CoPilot] Apply (background): launching",
+                                    adsk.core.LogLevels.InfoLogLevel,
                                     adsk.core.LogTypes.ConsoleLogType)
-                    else:
-                        bg_apply.execute()
+                        bg_apply = ui.commandDefinitions.itemById('fusion_copilot_apply_now') if ui else None
+                        if not bg_apply:
+                            if FUSION_AVAILABLE and app:
+                                app.log("[CoPilot] Apply (background): command missing",
+                                        adsk.core.LogLevels.WarningLogLevel,
+                                        adsk.core.LogTypes.ConsoleLogType)
+                        else:
+                            bg_apply.execute()
                 except Exception as e:
                     try:
                         if FUSION_AVAILABLE and app:
