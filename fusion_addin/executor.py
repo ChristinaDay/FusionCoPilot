@@ -705,12 +705,18 @@ class PlanExecutor:
                 face_sketch.name = f'CoPilot_HoleSketch_{op_id}'
             except Exception:
                 pass
-            # Use sketch origin (0,0) for center by default; allow XY offsets if provided
-            cx = center_point.get('x', 0)
-            cy = center_point.get('y', 0)
-            # In face sketch coordinates, use Z=0
-            sketch_pt_3d = adsk.core.Point3D.create(mm(cx), mm(cy), 0)
-            sp = face_sketch.sketchPoints.add(sketch_pt_3d)
+            # Prefer the geometric center of the face projected into sketch space
+            try:
+                bbox = target_face.boundingBox
+                cx = (bbox.minPoint.x + bbox.maxPoint.x) / 2.0
+                cy = (bbox.minPoint.y + bbox.maxPoint.y) / 2.0
+                cz = (bbox.minPoint.z + bbox.maxPoint.z) / 2.0
+                center_model = adsk.core.Point3D.create(cx, cy, cz)
+                center_sketch = face_sketch.modelToSketchSpace(center_model)
+                sp = face_sketch.sketchPoints.add(center_sketch)
+            except Exception:
+                # Fallback: use sketch origin
+                sp = face_sketch.sketchPoints.add(adsk.core.Point3D.create(0, 0, 0))
 
             dia_val = adsk.core.ValueInput.createByReal(mm(diameter_mm))
             hole_input = holes.createSimpleInput(dia_val)
