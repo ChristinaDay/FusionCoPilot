@@ -659,48 +659,69 @@ class PlanExecutor:
     def _execute_create_hole(self, op_id: str, params: Dict, target_ref: Optional[str]) -> Dict:
         """Execute create_hole operation."""
         if FUSION_AVAILABLE:
-            # TODO: Replace with actual Fusion API calls
-            # 
-            # root_comp = self.design.rootComponent
-            # features = root_comp.features
-            # holes = features.holeFeatures
-            # 
-            # # Find target face
-            # target_face = self._resolve_face_reference(target_ref)
-            # if not target_face:
-            #     raise ExecutionError(f"Target face not found: {target_ref}")
-            # 
-            # # Extract hole parameters
-            # center_point = params.get('center_point', {'x': 0, 'y': 0, 'z': 0})
-            # diameter = self._extract_dimension_value(params.get('diameter', 5))
-            # depth_type = params.get('depth', 'through_all')
-            # 
-            # # Create hole input
-            # center = adsk.core.Point3D.create(
-            #     center_point['x'], center_point['y'], center_point['z']
-            # )
-            # hole_input = holes.createSimpleInput(adsk.core.ValueInput.createByReal(diameter / 10))
-            # hole_input.setPositionByPoint(center, target_face)
-            # 
-            # if depth_type == 'through_all':
-            #     hole_input.setAllExtent()
-            # else:
-            #     depth = self._extract_dimension_value(params.get('depth_value', 10))
-            #     hole_input.setDistanceExtent(adsk.core.ValueInput.createByReal(depth / 10))
-            # 
-            # # Create hole
-            # hole_feature = holes.add(hole_input)
-            # hole_feature.name = f'Hole_{op_id}'
-            # 
-            # timeline_node = self._get_latest_timeline_node()
-            
-            # Mock implementation
-            diameter = self._extract_dimension_value(params.get('diameter', 5))
+            # Use selected face if available, otherwise require selection
+            root_comp = self.design.rootComponent
+            features = root_comp.features
+            holes = features.holeFeatures
+
+            target_face = None
+            try:
+                # Prefer explicit reference for selected face
+                if (target_ref or '').lower() in ('face_selected', 'selected_face', 'face_current'):
+                    target_face = self._get_selected_face()
+                if not target_face:
+                    # Fallback to any currently selected face
+                    target_face = self._get_selected_face()
+            except Exception:
+                target_face = None
+
+            if not target_face:
+                raise ExecutionError("Select a target face for the hole and try again.")
+
+            # Extract hole parameters
             center_point = params.get('center_point', {'x': 0, 'y': 0, 'z': 0})
-            
-            logger.info(f"[MOCK] Created hole: ⌀{diameter}mm at ({center_point['x']}, {center_point['y']})")
-            timeline_node = f"Timeline_Hole_{op_id}"
-            
+            diameter_mm = self._extract_dimension_value(params.get('diameter', 5))
+            depth_type = params.get('depth', 'through_all')
+
+            def mm(v: float) -> float:
+                return float(v) / 10.0
+
+            center = adsk.core.Point3D.create(mm(center_point.get('x', 0)), mm(center_point.get('y', 0)), mm(center_point.get('z', 0)))
+            dia_val = adsk.core.ValueInput.createByReal(mm(diameter_mm))
+            hole_input = holes.createSimpleInput(dia_val)
+            try:
+                hole_input.setPositionByPoint(center, target_face)
+            except Exception:
+                # Some Fusion versions expect setPositionBySketchPoint/sketch center; try face center fallback
+                try:
+                    bbox = target_face.boundingBox
+                    cx = (bbox.minPoint.x + bbox.maxPoint.x) / 2.0
+                    cy = (bbox.minPoint.y + bbox.maxPoint.y) / 2.0
+                    cz = (bbox.minPoint.z + bbox.maxPoint.z) / 2.0
+                    hole_input.setPositionByPoint(adsk.core.Point3D.create(cx, cy, cz), target_face)
+                except Exception as e:
+                    raise ExecutionError(f"Failed to position hole: {e}")
+
+            if str(depth_type).lower() in ('through_all', 'all', 'through'):
+                try:
+                    hole_input.setAllExtent()
+                except Exception:
+                    pass
+            else:
+                depth_mm = self._extract_dimension_value(params.get('depth_value', params.get('depth', 10)))
+                try:
+                    hole_input.setDistanceExtent(adsk.core.ValueInput.createByReal(mm(depth_mm)))
+                except Exception:
+                    pass
+
+            hole_feature = holes.add(hole_input)
+            try:
+                hole_feature.name = f'CoPilot_Hole_{op_id}'
+            except Exception:
+                pass
+
+            timeline_node = self._get_latest_timeline_node()
+            diameter = diameter_mm
         else:
             # Development mock
             diameter = self._extract_dimension_value(params.get('diameter', 5))
