@@ -466,38 +466,46 @@ class PlanExecutor:
     def _execute_draw_circle(self, op_id: str, params: Dict, target_ref: Optional[str]) -> Dict:
         """Execute draw_circle operation."""
         if FUSION_AVAILABLE:
-            # TODO: Replace with actual Fusion API calls
-            # 
-            # sketch = self._resolve_sketch_reference(target_ref)
-            # if not sketch:
-            #     raise ExecutionError(f"Target sketch not found: {target_ref}")
-            # 
-            # center_point = params.get('center_point', {'x': 0, 'y': 0, 'z': 0})
-            # 
-            # if 'radius' in params:
-            #     radius = self._extract_dimension_value(params['radius'])
-            # elif 'diameter' in params:
-            #     radius = self._extract_dimension_value(params['diameter']) / 2
-            # else:
-            #     raise ExecutionError("Circle requires radius or diameter")
-            # 
-            # center = adsk.core.Point3D.create(
-            #     center_point['x'], center_point['y'], center_point['z']
-            # )
-            # circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(center, radius)
-            
-            # Mock implementation
+            # Resolve or pick a sketch similar to rectangle flow
+            sketch = None
+            if target_ref:
+                sketch = self._resolve_sketch_reference(target_ref)
+            if not sketch and hasattr(self, 'last_sketch'):
+                sketch = self.last_sketch
+            if not sketch:
+                try:
+                    root_comp = self.design.rootComponent
+                    sketches = root_comp.sketches
+                    if sketches.count > 0:
+                        sketch = sketches.item(sketches.count - 1)
+                except Exception:
+                    sketch = None
+            if not sketch:
+                raise ExecutionError("No target sketch available for circle")
+
+            center_point = params.get('center_point', {'x': 0, 'y': 0, 'z': 0})
+
+            # Dimensions are in mm; Fusion expects cm (cm = mm/10)
             if 'radius' in params:
-                radius = self._extract_dimension_value(params['radius'])
-                diameter = radius * 2
+                radius_mm = self._extract_dimension_value(params['radius'])
+                diameter = radius_mm * 2
             elif 'diameter' in params:
                 diameter = self._extract_dimension_value(params['diameter'])
-                radius = diameter / 2
+                radius_mm = diameter / 2.0
             else:
                 raise ExecutionError("Circle requires radius or diameter")
-            
-            logger.info(f"[MOCK] Drew circle: ⌀{diameter}mm in sketch {target_ref}")
-            
+
+            def mm(v: float) -> float:
+                return float(v) / 10.0
+
+            center = adsk.core.Point3D.create(mm(center_point.get('x', 0)), mm(center_point.get('y', 0)), 0)
+            circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(center, mm(radius_mm))
+            try:
+                if sketch.profiles.count > 0:
+                    self.last_profile = sketch.profiles.item(sketch.profiles.count - 1)
+            except Exception:
+                self.last_profile = None
+            logger.info(f"Drew circle: ⌀{diameter}mm in sketch")
         else:
             # Development mock
             if 'radius' in params:

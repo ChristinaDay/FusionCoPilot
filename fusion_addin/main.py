@@ -928,6 +928,12 @@ class CoPilotApplyNowExecuteHandler(adsk.core.CommandEventHandler if FUSION_AVAI
                     results_display.text += f"\n\nValidation failed:\n" + "\n".join(messages)
                 return
             
+            # Persist sanitized plan for subsequent Apply/Preview steps
+            try:
+                globals()['last_sanitized_plan'] = sanitized_plan
+            except Exception:
+                pass
+            
             # Step 3: Show sanitized plan
             op_count = len(sanitized_plan.get('operations', []))
             if results_display:
@@ -1568,12 +1574,29 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
             if not plan:
                 exec_handler = CoPilotExecuteHandler()
                 last_prompt = inputs.itemById('prompt_input').text if inputs.itemById('prompt_input') else ''
-                # Use canned plan as fallback
-                offline = exec_handler._offline_canned_response(last_prompt or 'create a cube') or {}
+                # First try to get a fresh plan from LLM/stub using the current prompt
+                fresh = None
                 try:
-                    is_valid, sanitized_plan, messages = sanitizer.sanitize_plan(offline)
+                    fresh = exec_handler.send_to_llm(last_prompt or 'create a cube')
                 except Exception:
-                    is_valid, sanitized_plan, messages = True, offline, []
+                    fresh = None
+                candidate = fresh
+                # If network/stub failed, fall back to offline canned based on the prompt text (no forced cube)
+                if not candidate:
+                    try:
+                        candidate = exec_handler._offline_canned_response(last_prompt)
+                    except Exception:
+                        candidate = None
+                if not candidate:
+                    candidate = {
+                        'plan_id': 'offline_fallback_apply',
+                        'metadata': { 'units': settings.get('processing', {}).get('units_default', 'mm') },
+                        'operations': [ {'op_id':'op_1','op':'create_sketch','params':{'plane':'XY','name':'fallback'}} ]
+                    }
+                try:
+                    is_valid, sanitized_plan, messages = sanitizer.sanitize_plan(candidate)
+                except Exception:
+                    is_valid, sanitized_plan, messages = True, candidate, []
                 if not is_valid:
                     if results_display:
                         results_display.value = 'Apply failed: No valid plan available.'
