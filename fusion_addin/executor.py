@@ -686,21 +686,26 @@ class PlanExecutor:
             def mm(v: float) -> float:
                 return float(v) / 10.0
 
-            center = adsk.core.Point3D.create(mm(center_point.get('x', 0)), mm(center_point.get('y', 0)), mm(center_point.get('z', 0)))
+            # Create a sketch on the target face and add a sketch point for positioning
+            sketches = root_comp.sketches
+            face_sketch = sketches.add(target_face)
+            try:
+                face_sketch.name = f'CoPilot_HoleSketch_{op_id}'
+            except Exception:
+                pass
+            # Use sketch origin (0,0) for center by default; allow XY offsets if provided
+            cx = center_point.get('x', 0)
+            cy = center_point.get('y', 0)
+            # In face sketch coordinates, use Z=0
+            sketch_pt_3d = adsk.core.Point3D.create(mm(cx), mm(cy), 0)
+            sp = face_sketch.sketchPoints.add(sketch_pt_3d)
+
             dia_val = adsk.core.ValueInput.createByReal(mm(diameter_mm))
             hole_input = holes.createSimpleInput(dia_val)
             try:
-                hole_input.setPositionByPoint(center, target_face)
-            except Exception:
-                # Some Fusion versions expect setPositionBySketchPoint/sketch center; try face center fallback
-                try:
-                    bbox = target_face.boundingBox
-                    cx = (bbox.minPoint.x + bbox.maxPoint.x) / 2.0
-                    cy = (bbox.minPoint.y + bbox.maxPoint.y) / 2.0
-                    cz = (bbox.minPoint.z + bbox.maxPoint.z) / 2.0
-                    hole_input.setPositionByPoint(adsk.core.Point3D.create(cx, cy, cz), target_face)
-                except Exception as e:
-                    raise ExecutionError(f"Failed to position hole: {e}")
+                hole_input.setPositionBySketchPoint(sp, target_face)
+            except Exception as e:
+                raise ExecutionError(f"Failed to position hole: {e}")
 
             if str(depth_type).lower() in ('through_all', 'all', 'through'):
                 try:
