@@ -714,17 +714,24 @@ class PlanExecutor:
 
             dia_val = adsk.core.ValueInput.createByReal(mm(diameter_mm))
             hole_input = holes.createSimpleInput(dia_val)
-            try:
-                hole_input.setPositionBySketchPoint(sp)
-            except Exception as e:
-                raise ExecutionError(f"Failed to position hole: {e}")
-
-            # For reliability across API versions, default to through-all
-            # (Distance extents can trigger validation errors depending on context)
+            # Prefer through-all extent first to avoid distance validation
             try:
                 hole_input.setAllExtent()
             except Exception:
                 pass
+            # Then set position
+            try:
+                hole_input.setPositionBySketchPoint(sp)
+            except Exception:
+                # Fallback: use face bounding-box center as 3D point
+                try:
+                    bbox = target_face.boundingBox
+                    cx = (bbox.minPoint.x + bbox.maxPoint.x) / 2.0
+                    cy = (bbox.minPoint.y + bbox.maxPoint.y) / 2.0
+                    cz = (bbox.minPoint.z + bbox.maxPoint.z) / 2.0
+                    hole_input.setPositionByPoint(adsk.core.Point3D.create(cx, cy, cz), target_face)
+                except Exception as e2:
+                    raise ExecutionError(f"Failed to position hole: {e2}")
 
             hole_feature = holes.add(hole_input)
             try:
