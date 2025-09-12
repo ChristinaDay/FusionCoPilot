@@ -719,17 +719,12 @@ class PlanExecutor:
             except Exception as e:
                 raise ExecutionError(f"Failed to position hole: {e}")
 
-            if str(depth_type).lower() in ('through_all', 'all', 'through'):
-                try:
-                    hole_input.setAllExtent()
-                except Exception:
-                    pass
-            else:
-                depth_mm = self._extract_dimension_value(params.get('depth_value', params.get('depth', 10)))
-                try:
-                    hole_input.setDistanceExtent(adsk.core.ValueInput.createByReal(mm(depth_mm)))
-                except Exception:
-                    pass
+            # For reliability across API versions, default to through-all
+            # (Distance extents can trigger validation errors depending on context)
+            try:
+                hole_input.setAllExtent()
+            except Exception:
+                pass
 
             hole_feature = holes.add(hole_input)
             try:
