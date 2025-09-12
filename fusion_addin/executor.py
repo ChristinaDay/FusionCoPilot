@@ -350,6 +350,8 @@ class PlanExecutor:
             return self._execute_draw_rectangle(op_id, params, operation.get('target_ref'))
         elif op_type == 'draw_circle':
             return self._execute_draw_circle(op_id, params, operation.get('target_ref'))
+        elif op_type == 'draw_polygon':
+            return self._execute_draw_polygon(op_id, params, operation.get('target_ref'))
         elif op_type == 'extrude':
             return self._execute_extrude(op_id, params)
         elif op_type == 'cut':
@@ -362,6 +364,10 @@ class PlanExecutor:
             return self._execute_create_hole(op_id, params, operation.get('target_ref'))
         elif op_type == 'pattern_linear':
             return self._execute_pattern_linear(op_id, params)
+        elif op_type == 'pattern_circular':
+            return self._execute_pattern_circular(op_id, params)
+        elif op_type == 'pattern_rectangular':
+            return self._execute_pattern_rectangular(op_id, params)
         elif op_type == 'shell':
             return self._execute_shell(op_id, params)
         else:
@@ -523,6 +529,73 @@ class PlanExecutor:
             'timeline_node': None,
             'feature_type': 'sketch_geometry',
             'dimensions': {'diameter': diameter}
+        }
+
+    def _execute_draw_polygon(self, op_id: str, params: Dict, target_ref: Optional[str]) -> Dict:
+        """Execute draw_polygon operation (regular polygon)."""
+        if FUSION_AVAILABLE:
+            sketch = None
+            if target_ref:
+                sketch = self._resolve_sketch_reference(target_ref)
+            if not sketch and hasattr(self, 'last_sketch'):
+                sketch = self.last_sketch
+            if not sketch:
+                try:
+                    root_comp = self.design.rootComponent
+                    sketches = root_comp.sketches
+                    if sketches.count > 0:
+                        sketch = sketches.item(sketches.count - 1)
+                except Exception:
+                    sketch = None
+            if not sketch:
+                raise ExecutionError("No target sketch available for polygon")
+
+            center_point = params.get('center_point', {'x': 0, 'y': 0, 'z': 0})
+            sides = int(params.get('sides', 6))
+            # Support circumscribed_radius or inscribed_radius
+            if 'circumscribed_radius' in params:
+                radius_mm = self._extract_dimension_value(params['circumscribed_radius'])
+            elif 'inscribed_radius' in params:
+                # Convert inscribed radius to circumscribed for regular polygons
+                r_in_mm = self._extract_dimension_value(params['inscribed_radius'])
+                import math
+                radius_mm = r_in_mm / math.cos(math.pi / max(sides, 3))
+            else:
+                radius_mm = self._extract_dimension_value(params.get('radius', 10))
+
+            def mm(v: float) -> float:
+                return float(v) / 10.0
+
+            center = adsk.core.Point3D.create(mm(center_point.get('x', 0)), mm(center_point.get('y', 0)), 0)
+            # Fusion API lacks a direct "regular polygon" primitive; sketch via lines
+            import math
+            points = []
+            for i in range(max(sides, 3)):
+                ang = 2 * math.pi * i / max(sides, 3)
+                px = center.x + mm(radius_mm) * math.cos(ang)
+                py = center.y + mm(radius_mm) * math.sin(ang)
+                points.append(adsk.core.Point3D.create(px, py, 0))
+            for i in range(len(points)):
+                p1 = points[i]
+                p2 = points[(i + 1) % len(points)]
+                sketch.sketchCurves.sketchLines.addByTwoPoints(p1, p2)
+            try:
+                if sketch.profiles.count > 0:
+                    self.last_profile = sketch.profiles.item(sketch.profiles.count - 1)
+            except Exception:
+                self.last_profile = None
+            feature_name = f'Polygon_{op_id}'
+        else:
+            # Development mock only
+            sides = int(params.get('sides', 6))
+            feature_name = f'Polygon_{op_id}'
+        return {
+            'success': True,
+            'operation_id': op_id,
+            'feature_created': feature_name,
+            'timeline_node': None,
+            'feature_type': 'sketch_geometry',
+            'dimensions': {'sides': sides}
         }
     
     def _execute_extrude(self, op_id: str, params: Dict) -> Dict:
@@ -705,6 +778,36 @@ class PlanExecutor:
             'timeline_node': f"Timeline_LinearPattern_{op_id}",
             'feature_type': 'pattern_linear',
             'dimensions': {'count': count, 'spacing': spacing}
+        }
+
+    def _execute_pattern_circular(self, op_id: str, params: Dict) -> Dict:
+        """Execute circular pattern operation (mock/dev)."""
+        # Mock implementation for development
+        count = int(params.get('count', params.get('count_1', 6)))
+        angle = self._extract_dimension_value(params.get('angle', {'value': 360, 'unit': 'deg'}))
+        return {
+            'success': True,
+            'operation_id': op_id,
+            'feature_created': f'CircularPattern_{op_id}',
+            'timeline_node': f"Timeline_CircularPattern_{op_id}",
+            'feature_type': 'pattern_circular',
+            'dimensions': {'count': count, 'angle': angle}
+        }
+
+    def _execute_pattern_rectangular(self, op_id: str, params: Dict) -> Dict:
+        """Execute rectangular pattern operation (mock/dev)."""
+        # Mock implementation for development
+        count_1 = int(params.get('count_1', params.get('count_x', 2)))
+        count_2 = int(params.get('count_2', params.get('count_y', 2)))
+        dist_1 = self._extract_dimension_value(params.get('distance_1', params.get('spacing_x', 10)))
+        dist_2 = self._extract_dimension_value(params.get('distance_2', params.get('spacing_y', 10)))
+        return {
+            'success': True,
+            'operation_id': op_id,
+            'feature_created': f'RectangularPattern_{op_id}',
+            'timeline_node': f"Timeline_RectangularPattern_{op_id}",
+            'feature_type': 'pattern_rectangular',
+            'dimensions': {'count_1': count_1, 'count_2': count_2, 'distance_1': dist_1, 'distance_2': dist_2}
         }
     
     def _execute_shell(self, op_id: str, params: Dict) -> Dict:
