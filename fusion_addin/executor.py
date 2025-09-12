@@ -928,6 +928,31 @@ class PlanExecutor:
         import uuid
         return f"Timeline_Node_{str(uuid.uuid4())[:8]}"
 
+    def _get_selected_face(self):
+        """Return the first selected BRepFace if available."""
+        if not FUSION_AVAILABLE or not self.ui:
+            return None
+        try:
+            selections = self.ui.activeSelections
+            if not selections or selections.count == 0:
+                return None
+            for i in range(selections.count):
+                sel = selections.item(i)
+                try:
+                    entity = sel.entity
+                except Exception:
+                    entity = None
+                # Check if it's a face
+                try:
+                    face = adsk.fusion.BRepFace.cast(entity)
+                except Exception:
+                    face = None
+                if face and getattr(face, 'isValid', True):
+                    return face
+            return None
+        except Exception:
+            return None
+
 
 def begin_transaction() -> TransactionContext:
     """
