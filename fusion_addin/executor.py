@@ -715,7 +715,7 @@ class PlanExecutor:
             dia_val = adsk.core.ValueInput.createByReal(mm(diameter_mm))
             hole_input = holes.createSimpleInput(dia_val)
             try:
-                hole_input.setPositionBySketchPoint(sp, target_face)
+                hole_input.setPositionBySketchPoint(sp)
             except Exception as e:
                 raise ExecutionError(f"Failed to position hole: {e}")
 
