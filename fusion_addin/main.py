@@ -709,6 +709,10 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
                 False
             )
             parse_button.tooltip = "Convert natural language to structured plan"
+            try:
+                parse_button.isFullWidth = True
+            except Exception:
+                pass
 
             # Run button (executes full pipeline and keeps dialog open)
             run_button = button_group.children.addBoolValueInput(
@@ -718,7 +722,11 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
                 icon_dir,
                 False
             )
-            run_button.tooltip = "Run parsing pipeline and show results (keeps dialog open)"
+            run_button.tooltip = "Parse + validate + apply in one step"
+            try:
+                run_button.isFullWidth = True
+            except Exception:
+                pass
             
             # Preview button
             # Preview button (push button)
@@ -730,6 +738,10 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
                 False
             )
             preview_button.tooltip = "Preview operations in sandbox mode"
+            try:
+                preview_button.isFullWidth = True
+            except Exception:
+                pass
             
             # Apply button
             # Apply button (push button)
@@ -741,6 +753,10 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
                 False
             )
             apply_button.tooltip = "Apply operations to active design"
+            try:
+                apply_button.isFullWidth = True
+            except Exception:
+                pass
             
             # (Results input defined above)
             
