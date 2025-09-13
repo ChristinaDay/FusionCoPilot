@@ -710,7 +710,7 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
             )
             parse_button.tooltip = "Convert natural language to structured plan"
             try:
-                parse_button.isFullWidth = True
+                parse_button.isFullWidth = False
             except Exception:
                 pass
 
@@ -724,7 +724,7 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
             )
             run_button.tooltip = "Parse + validate + apply in one step"
             try:
-                run_button.isFullWidth = True
+                run_button.isFullWidth = False
             except Exception:
                 pass
             
@@ -739,7 +739,7 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
             )
             preview_button.tooltip = "Preview operations in sandbox mode"
             try:
-                preview_button.isFullWidth = True
+                preview_button.isFullWidth = False
             except Exception:
                 pass
             
@@ -754,7 +754,7 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
             )
             apply_button.tooltip = "Apply operations to active design"
             try:
-                apply_button.isFullWidth = True
+                apply_button.isFullWidth = False
             except Exception:
                 pass
             
