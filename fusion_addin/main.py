@@ -699,7 +699,7 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
             
             # Parse button
             # Fusion expects a RELATIVE resource folder path here
-            icon_dir = 'resources/commandIcons'
+            icon_dir = ''  # Use text-forward buttons to ensure labels are visible
             # Parse button (push button, not checkbox)
             parse_button = button_group.children.addBoolValueInput(
                 'parse_button',
