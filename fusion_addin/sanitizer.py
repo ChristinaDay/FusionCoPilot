@@ -526,7 +526,7 @@ class PlanSanitizer:
             'create_sketch', 'draw_line', 'draw_circle', 'draw_rectangle',
             'draw_polygon', 'draw_arc', 'draw_spline', 'extrude', 'cut',
             'revolve', 'sweep', 'loft', 'fillet', 'chamfer', 'shell',
-            'mirror', 'pattern_linear', 'pattern_circular', 'pattern_path',
+            'mirror', 'pattern_linear', 'pattern_circular', 'pattern_rectangular', 'pattern_path',
             'create_plane', 'create_axis', 'create_point', 'set_dimension',
             'add_constraint', 'rename_feature', 'create_component',
             'create_joint', 'create_hole', 'thread_hole', 'countersink_hole',

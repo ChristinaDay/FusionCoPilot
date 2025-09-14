@@ -653,7 +653,7 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
             status_line = inputs.addTextBoxCommandInput(
                 'status_line',
                 'Status',
-                'Ready',
+                '',
                 1,
                 True
             )
@@ -662,27 +662,39 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
             # Results: use a string input (updates reliably across builds)
             results_input = inputs.addStringValueInput(
                 'results_display',
-                'Results',
-                'Ready...'
+                'Log',
+                ''
             )
             results_input.isReadOnly = True
             results_input.tooltip = "Shows parsing results and operation details"
+            try:
+                results_input.isFullWidth = True
+            except Exception:
+                pass
 
             # Main prompt input
             prompt_input = inputs.addTextBoxCommandInput(
                 'prompt_input',
-                'Natural Language Prompt',
+                '',
                 'Describe what you want to create...',
-                5,  # Number of rows
-                False  # Read only
+                5,
+                False
             )
             prompt_input.tooltip = "Enter your natural language description of what you want to create"
+            try:
+                prompt_input.isFullWidth = True
+            except Exception:
+                pass
             
             # Examples dropdown
             examples = inputs.addDropDownCommandInput('example_prompts', 'Examples', adsk.core.DropDownStyles.TextListDropDownStyle)
             examples.listItems.add('Create a 25mm cube', False)
             examples.listItems.add('Create a 100x50x10mm rectangular plate', False)
             examples.listItems.add('Add a 6mm hole at the center', False)
+            try:
+                examples.isFullWidth = True
+            except Exception:
+                pass
 
             # Action buttons group
             button_group = inputs.addGroupCommandInput('action_buttons', 'Actions')
@@ -691,56 +703,89 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
             # Build tag to confirm fresh dialog
             build_label = inputs.addTextBoxCommandInput(
                 'build_info',
-                'Build',
+                '',
                 datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 1,
                 True
             )
             
-            # Parse button
+            # Parse/Preview/Apply buttons and a distinct Run action
             # Fusion expects a RELATIVE resource folder path here
-            icon_dir = 'resources/commandIcons'
+            icon_dir = ''  # Use text-forward buttons to ensure labels are visible
+
+            # Emphasize the one-click pipeline
+            run_label = button_group.children.addTextBoxCommandInput(
+                'run_label',
+                '',
+                'One-click pipeline (Parse → Validate → Apply):',
+                2,
+                True
+            )
+            try:
+                run_label.isFullWidth = True
+            except Exception:
+                pass
+
+            # Run button (executes full pipeline and keeps dialog open)
+            run_button = button_group.children.addBoolValueInput(
+                'run_button',
+                '\u00A0Run\u00A0',
+                False,
+                icon_dir,
+                False
+            )
+            run_button.tooltip = "Parse + validate + apply in one step"
+            try:
+                run_button.isFullWidth = False
+            except Exception:
+                pass
+
+            # Divider before granular actions
+            button_group.children.addTextBoxCommandInput('actions_divider', '', '—', 1, True)
+
             # Parse button (push button, not checkbox)
             parse_button = button_group.children.addBoolValueInput(
                 'parse_button',
-                'Parse',
+                '\u00A0Parse\u00A0',
                 False,
                 icon_dir,
                 False
             )
             parse_button.tooltip = "Convert natural language to structured plan"
-
-            # Run button (executes full pipeline and keeps dialog open)
-            run_button = button_group.children.addBoolValueInput(
-                'run_button',
-                'Run',
-                False,
-                icon_dir,
-                False
-            )
-            run_button.tooltip = "Run parsing pipeline and show results (keeps dialog open)"
+            try:
+                parse_button.isFullWidth = False
+            except Exception:
+                pass
             
             # Preview button
             # Preview button (push button)
             preview_button = button_group.children.addBoolValueInput(
                 'preview_button',
-                'Preview',
+                '\u00A0Preview\u00A0',
                 False,
                 icon_dir,
                 False
             )
             preview_button.tooltip = "Preview operations in sandbox mode"
+            try:
+                preview_button.isFullWidth = False
+            except Exception:
+                pass
             
             # Apply button
             # Apply button (push button)
             apply_button = button_group.children.addBoolValueInput(
                 'apply_button',
-                'Apply',
+                '\u00A0Apply\u00A0',
                 False,
                 icon_dir,
                 False
             )
             apply_button.tooltip = "Apply operations to active design"
+            try:
+                apply_button.isFullWidth = False
+            except Exception:
+                pass
             
             # (Results input defined above)
             
@@ -927,6 +972,12 @@ class CoPilotApplyNowExecuteHandler(adsk.core.CommandEventHandler if FUSION_AVAI
                 if results_display:
                     results_display.text += f"\n\nValidation failed:\n" + "\n".join(messages)
                 return
+            
+            # Persist sanitized plan for subsequent Apply/Preview steps
+            try:
+                globals()['last_sanitized_plan'] = sanitized_plan
+            except Exception:
+                pass
             
             # Step 3: Show sanitized plan
             op_count = len(sanitized_plan.get('operations', []))
@@ -1405,20 +1456,27 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                     self.handle_apply_button(inputs)
                 except Exception:
                     pass
-                # Also trigger background apply to reinforce persistence
+                # Also trigger background apply (skip for selection-dependent ops like holes)
                 try:
-                    if FUSION_AVAILABLE and app:
-                        app.log("[CoPilot] Apply (background): launching",
-                                adsk.core.LogLevels.InfoLogLevel,
-                                adsk.core.LogTypes.ConsoleLogType)
-                    bg_apply = ui.commandDefinitions.itemById('fusion_copilot_apply_now') if ui else None
-                    if not bg_apply:
+                    needs_selection = False
+                    try:
+                        ops = (last_sanitized_plan or {}).get('operations', [])
+                        needs_selection = any(op.get('op') in ('create_hole', 'fillet', 'chamfer') for op in ops)
+                    except Exception:
+                        needs_selection = False
+                    if not needs_selection:
                         if FUSION_AVAILABLE and app:
-                            app.log("[CoPilot] Apply (background): command missing",
-                                    adsk.core.LogLevels.WarningLogLevel,
+                            app.log("[CoPilot] Apply (background): launching",
+                                    adsk.core.LogLevels.InfoLogLevel,
                                     adsk.core.LogTypes.ConsoleLogType)
-                    else:
-                        bg_apply.execute()
+                        bg_apply = ui.commandDefinitions.itemById('fusion_copilot_apply_now') if ui else None
+                        if not bg_apply:
+                            if FUSION_AVAILABLE and app:
+                                app.log("[CoPilot] Apply (background): command missing",
+                                        adsk.core.LogLevels.WarningLogLevel,
+                                        adsk.core.LogTypes.ConsoleLogType)
+                        else:
+                            bg_apply.execute()
                 except Exception as e:
                     try:
                         if FUSION_AVAILABLE and app:
@@ -1568,12 +1626,29 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
             if not plan:
                 exec_handler = CoPilotExecuteHandler()
                 last_prompt = inputs.itemById('prompt_input').text if inputs.itemById('prompt_input') else ''
-                # Use canned plan as fallback
-                offline = exec_handler._offline_canned_response(last_prompt or 'create a cube') or {}
+                # First try to get a fresh plan from LLM/stub using the current prompt
+                fresh = None
                 try:
-                    is_valid, sanitized_plan, messages = sanitizer.sanitize_plan(offline)
+                    fresh = exec_handler.send_to_llm(last_prompt or 'create a cube')
                 except Exception:
-                    is_valid, sanitized_plan, messages = True, offline, []
+                    fresh = None
+                candidate = fresh
+                # If network/stub failed, fall back to offline canned based on the prompt text (no forced cube)
+                if not candidate:
+                    try:
+                        candidate = exec_handler._offline_canned_response(last_prompt)
+                    except Exception:
+                        candidate = None
+                if not candidate:
+                    candidate = {
+                        'plan_id': 'offline_fallback_apply',
+                        'metadata': { 'units': settings.get('processing', {}).get('units_default', 'mm') },
+                        'operations': [ {'op_id':'op_1','op':'create_sketch','params':{'plane':'XY','name':'fallback'}} ]
+                    }
+                try:
+                    is_valid, sanitized_plan, messages = sanitizer.sanitize_plan(candidate)
+                except Exception:
+                    is_valid, sanitized_plan, messages = True, candidate, []
                 if not is_valid:
                     if results_display:
                         results_display.value = 'Apply failed: No valid plan available.'

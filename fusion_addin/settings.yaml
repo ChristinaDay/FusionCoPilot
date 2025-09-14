@@ -21,23 +21,23 @@ llm:
   # Production OpenAI: https://api.openai.com/v1/chat/completions
   # Production Anthropic: https://api.anthropic.com/v1/messages
   # Azure OpenAI: https://your-resource.openai.azure.com/openai/deployments/your-model/chat/completions?api-version=2024-02-01
-  endpoint: "http://localhost:8080/llm"
+  endpoint: "https://api.openai.com/v1/chat/completions"
   
   # LLM provider (openai, anthropic, azure_openai) - can be overridden by COPILOT_LLM_PROVIDER
   provider: "openai"
   
   # Use local stub server (true) or external LLM service (false)
-  local_mode: true
+  local_mode: false
   
   # API key for external LLM services (leave empty for local mode)
   # Recommended: Set via environment variables (OPENAI_API_KEY, ANTHROPIC_API_KEY, AZURE_OPENAI_API_KEY)
-  api_key: ""
+  api_key: "${OPENAI_API_KEY}"
   
   # Model to use for external services - can be overridden by COPILOT_LLM_MODEL
   # OpenAI: gpt-4, gpt-4-turbo, gpt-3.5-turbo
   # Anthropic: claude-3-5-sonnet-20241022, claude-3-haiku-20240307
   # Azure OpenAI: Your deployment name
-  model: "gpt-4"
+  model: "gpt-4o-mini"
   
   # Request timeout in seconds - can be overridden by COPILOT_REQUEST_TIMEOUT
   timeout: 30

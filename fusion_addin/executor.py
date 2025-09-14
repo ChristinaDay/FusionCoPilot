@@ -350,6 +350,8 @@ class PlanExecutor:
             return self._execute_draw_rectangle(op_id, params, operation.get('target_ref'))
         elif op_type == 'draw_circle':
             return self._execute_draw_circle(op_id, params, operation.get('target_ref'))
+        elif op_type == 'draw_polygon':
+            return self._execute_draw_polygon(op_id, params, operation.get('target_ref'))
         elif op_type == 'extrude':
             return self._execute_extrude(op_id, params)
         elif op_type == 'cut':
@@ -362,6 +364,10 @@ class PlanExecutor:
             return self._execute_create_hole(op_id, params, operation.get('target_ref'))
         elif op_type == 'pattern_linear':
             return self._execute_pattern_linear(op_id, params)
+        elif op_type == 'pattern_circular':
+            return self._execute_pattern_circular(op_id, params)
+        elif op_type == 'pattern_rectangular':
+            return self._execute_pattern_rectangular(op_id, params)
         elif op_type == 'shell':
             return self._execute_shell(op_id, params)
         else:
@@ -466,38 +472,46 @@ class PlanExecutor:
     def _execute_draw_circle(self, op_id: str, params: Dict, target_ref: Optional[str]) -> Dict:
         """Execute draw_circle operation."""
         if FUSION_AVAILABLE:
-            # TODO: Replace with actual Fusion API calls
-            # 
-            # sketch = self._resolve_sketch_reference(target_ref)
-            # if not sketch:
-            #     raise ExecutionError(f"Target sketch not found: {target_ref}")
-            # 
-            # center_point = params.get('center_point', {'x': 0, 'y': 0, 'z': 0})
-            # 
-            # if 'radius' in params:
-            #     radius = self._extract_dimension_value(params['radius'])
-            # elif 'diameter' in params:
-            #     radius = self._extract_dimension_value(params['diameter']) / 2
-            # else:
-            #     raise ExecutionError("Circle requires radius or diameter")
-            # 
-            # center = adsk.core.Point3D.create(
-            #     center_point['x'], center_point['y'], center_point['z']
-            # )
-            # circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(center, radius)
-            
-            # Mock implementation
+            # Resolve or pick a sketch similar to rectangle flow
+            sketch = None
+            if target_ref:
+                sketch = self._resolve_sketch_reference(target_ref)
+            if not sketch and hasattr(self, 'last_sketch'):
+                sketch = self.last_sketch
+            if not sketch:
+                try:
+                    root_comp = self.design.rootComponent
+                    sketches = root_comp.sketches
+                    if sketches.count > 0:
+                        sketch = sketches.item(sketches.count - 1)
+                except Exception:
+                    sketch = None
+            if not sketch:
+                raise ExecutionError("No target sketch available for circle")
+
+            center_point = params.get('center_point', {'x': 0, 'y': 0, 'z': 0})
+
+            # Dimensions are in mm; Fusion expects cm (cm = mm/10)
             if 'radius' in params:
-                radius = self._extract_dimension_value(params['radius'])
-                diameter = radius * 2
+                radius_mm = self._extract_dimension_value(params['radius'])
+                diameter = radius_mm * 2
             elif 'diameter' in params:
                 diameter = self._extract_dimension_value(params['diameter'])
-                radius = diameter / 2
+                radius_mm = diameter / 2.0
             else:
                 raise ExecutionError("Circle requires radius or diameter")
-            
-            logger.info(f"[MOCK] Drew circle: ⌀{diameter}mm in sketch {target_ref}")
-            
+
+            def mm(v: float) -> float:
+                return float(v) / 10.0
+
+            center = adsk.core.Point3D.create(mm(center_point.get('x', 0)), mm(center_point.get('y', 0)), 0)
+            circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(center, mm(radius_mm))
+            try:
+                if sketch.profiles.count > 0:
+                    self.last_profile = sketch.profiles.item(sketch.profiles.count - 1)
+            except Exception:
+                self.last_profile = None
+            logger.info(f"Drew circle: ⌀{diameter}mm in sketch")
         else:
             # Development mock
             if 'radius' in params:
@@ -515,6 +529,73 @@ class PlanExecutor:
             'timeline_node': None,
             'feature_type': 'sketch_geometry',
             'dimensions': {'diameter': diameter}
+        }
+
+    def _execute_draw_polygon(self, op_id: str, params: Dict, target_ref: Optional[str]) -> Dict:
+        """Execute draw_polygon operation (regular polygon)."""
+        if FUSION_AVAILABLE:
+            sketch = None
+            if target_ref:
+                sketch = self._resolve_sketch_reference(target_ref)
+            if not sketch and hasattr(self, 'last_sketch'):
+                sketch = self.last_sketch
+            if not sketch:
+                try:
+                    root_comp = self.design.rootComponent
+                    sketches = root_comp.sketches
+                    if sketches.count > 0:
+                        sketch = sketches.item(sketches.count - 1)
+                except Exception:
+                    sketch = None
+            if not sketch:
+                raise ExecutionError("No target sketch available for polygon")
+
+            center_point = params.get('center_point', {'x': 0, 'y': 0, 'z': 0})
+            sides = int(params.get('sides', 6))
+            # Support circumscribed_radius or inscribed_radius
+            if 'circumscribed_radius' in params:
+                radius_mm = self._extract_dimension_value(params['circumscribed_radius'])
+            elif 'inscribed_radius' in params:
+                # Convert inscribed radius to circumscribed for regular polygons
+                r_in_mm = self._extract_dimension_value(params['inscribed_radius'])
+                import math
+                radius_mm = r_in_mm / math.cos(math.pi / max(sides, 3))
+            else:
+                radius_mm = self._extract_dimension_value(params.get('radius', 10))
+
+            def mm(v: float) -> float:
+                return float(v) / 10.0
+
+            center = adsk.core.Point3D.create(mm(center_point.get('x', 0)), mm(center_point.get('y', 0)), 0)
+            # Fusion API lacks a direct "regular polygon" primitive; sketch via lines
+            import math
+            points = []
+            for i in range(max(sides, 3)):
+                ang = 2 * math.pi * i / max(sides, 3)
+                px = center.x + mm(radius_mm) * math.cos(ang)
+                py = center.y + mm(radius_mm) * math.sin(ang)
+                points.append(adsk.core.Point3D.create(px, py, 0))
+            for i in range(len(points)):
+                p1 = points[i]
+                p2 = points[(i + 1) % len(points)]
+                sketch.sketchCurves.sketchLines.addByTwoPoints(p1, p2)
+            try:
+                if sketch.profiles.count > 0:
+                    self.last_profile = sketch.profiles.item(sketch.profiles.count - 1)
+            except Exception:
+                self.last_profile = None
+            feature_name = f'Polygon_{op_id}'
+        else:
+            # Development mock only
+            sides = int(params.get('sides', 6))
+            feature_name = f'Polygon_{op_id}'
+        return {
+            'success': True,
+            'operation_id': op_id,
+            'feature_created': feature_name,
+            'timeline_node': None,
+            'feature_type': 'sketch_geometry',
+            'dimensions': {'sides': sides}
         }
     
     def _execute_extrude(self, op_id: str, params: Dict) -> Dict:
@@ -578,48 +659,94 @@ class PlanExecutor:
     def _execute_create_hole(self, op_id: str, params: Dict, target_ref: Optional[str]) -> Dict:
         """Execute create_hole operation."""
         if FUSION_AVAILABLE:
-            # TODO: Replace with actual Fusion API calls
-            # 
-            # root_comp = self.design.rootComponent
-            # features = root_comp.features
-            # holes = features.holeFeatures
-            # 
-            # # Find target face
-            # target_face = self._resolve_face_reference(target_ref)
-            # if not target_face:
-            #     raise ExecutionError(f"Target face not found: {target_ref}")
-            # 
-            # # Extract hole parameters
-            # center_point = params.get('center_point', {'x': 0, 'y': 0, 'z': 0})
-            # diameter = self._extract_dimension_value(params.get('diameter', 5))
-            # depth_type = params.get('depth', 'through_all')
-            # 
-            # # Create hole input
-            # center = adsk.core.Point3D.create(
-            #     center_point['x'], center_point['y'], center_point['z']
-            # )
-            # hole_input = holes.createSimpleInput(adsk.core.ValueInput.createByReal(diameter / 10))
-            # hole_input.setPositionByPoint(center, target_face)
-            # 
-            # if depth_type == 'through_all':
-            #     hole_input.setAllExtent()
-            # else:
-            #     depth = self._extract_dimension_value(params.get('depth_value', 10))
-            #     hole_input.setDistanceExtent(adsk.core.ValueInput.createByReal(depth / 10))
-            # 
-            # # Create hole
-            # hole_feature = holes.add(hole_input)
-            # hole_feature.name = f'Hole_{op_id}'
-            # 
-            # timeline_node = self._get_latest_timeline_node()
-            
-            # Mock implementation
-            diameter = self._extract_dimension_value(params.get('diameter', 5))
+            # Use selected face if available, otherwise require selection
+            root_comp = self.design.rootComponent
+            features = root_comp.features
+            holes = features.holeFeatures
+
+            target_face = None
+            try:
+                # Prefer explicit reference for selected face
+                if (target_ref or '').lower() in ('face_selected', 'selected_face', 'face_current'):
+                    target_face = self._get_selected_face()
+                if not target_face:
+                    # Fallback to any currently selected face
+                    target_face = self._get_selected_face()
+            except Exception:
+                target_face = None
+
+            if not target_face:
+                # As a last resort, try to pick the last face from last created feature's body
+                try:
+                    root_comp = self.design.rootComponent
+                    bodies = root_comp.bRepBodies
+                    if bodies and bodies.count > 0:
+                        b = bodies.item(bodies.count - 1)
+                        faces = getattr(b, 'faces', None)
+                        if faces and faces.count > 0:
+                            target_face = faces.item(0)
+                except Exception:
+                    target_face = None
+            if not target_face:
+                raise ExecutionError("Select a target face for the hole and try again.")
+
+            # Extract hole parameters
             center_point = params.get('center_point', {'x': 0, 'y': 0, 'z': 0})
-            
-            logger.info(f"[MOCK] Created hole: ⌀{diameter}mm at ({center_point['x']}, {center_point['y']})")
-            timeline_node = f"Timeline_Hole_{op_id}"
-            
+            diameter_mm = self._extract_dimension_value(params.get('diameter', 5))
+            depth_type = params.get('depth', 'through_all')
+
+            def mm(v: float) -> float:
+                return float(v) / 10.0
+
+            # Create a sketch on the target face and add a sketch point for positioning
+            sketches = root_comp.sketches
+            face_sketch = sketches.add(target_face)
+            try:
+                face_sketch.name = f'CoPilot_HoleSketch_{op_id}'
+            except Exception:
+                pass
+            # Prefer the geometric center of the face projected into sketch space
+            try:
+                bbox = target_face.boundingBox
+                cx = (bbox.minPoint.x + bbox.maxPoint.x) / 2.0
+                cy = (bbox.minPoint.y + bbox.maxPoint.y) / 2.0
+                cz = (bbox.minPoint.z + bbox.maxPoint.z) / 2.0
+                center_model = adsk.core.Point3D.create(cx, cy, cz)
+                center_sketch = face_sketch.modelToSketchSpace(center_model)
+                sp = face_sketch.sketchPoints.add(center_sketch)
+            except Exception:
+                # Fallback: use sketch origin
+                sp = face_sketch.sketchPoints.add(adsk.core.Point3D.create(0, 0, 0))
+
+            dia_val = adsk.core.ValueInput.createByReal(mm(diameter_mm))
+            hole_input = holes.createSimpleInput(dia_val)
+            # Prefer through-all extent first to avoid distance validation
+            try:
+                hole_input.setAllExtent()
+            except Exception:
+                pass
+            # Then set position
+            try:
+                hole_input.setPositionBySketchPoint(sp)
+            except Exception:
+                # Fallback: use face bounding-box center as 3D point
+                try:
+                    bbox = target_face.boundingBox
+                    cx = (bbox.minPoint.x + bbox.maxPoint.x) / 2.0
+                    cy = (bbox.minPoint.y + bbox.maxPoint.y) / 2.0
+                    cz = (bbox.minPoint.z + bbox.maxPoint.z) / 2.0
+                    hole_input.setPositionByPoint(adsk.core.Point3D.create(cx, cy, cz), target_face)
+                except Exception as e2:
+                    raise ExecutionError(f"Failed to position hole: {e2}")
+
+            hole_feature = holes.add(hole_input)
+            try:
+                hole_feature.name = f'CoPilot_Hole_{op_id}'
+            except Exception:
+                pass
+
+            timeline_node = self._get_latest_timeline_node()
+            diameter = diameter_mm
         else:
             # Development mock
             diameter = self._extract_dimension_value(params.get('diameter', 5))
@@ -697,6 +824,36 @@ class PlanExecutor:
             'timeline_node': f"Timeline_LinearPattern_{op_id}",
             'feature_type': 'pattern_linear',
             'dimensions': {'count': count, 'spacing': spacing}
+        }
+
+    def _execute_pattern_circular(self, op_id: str, params: Dict) -> Dict:
+        """Execute circular pattern operation (mock/dev)."""
+        # Mock implementation for development
+        count = int(params.get('count', params.get('count_1', 6)))
+        angle = self._extract_dimension_value(params.get('angle', {'value': 360, 'unit': 'deg'}))
+        return {
+            'success': True,
+            'operation_id': op_id,
+            'feature_created': f'CircularPattern_{op_id}',
+            'timeline_node': f"Timeline_CircularPattern_{op_id}",
+            'feature_type': 'pattern_circular',
+            'dimensions': {'count': count, 'angle': angle}
+        }
+
+    def _execute_pattern_rectangular(self, op_id: str, params: Dict) -> Dict:
+        """Execute rectangular pattern operation (mock/dev)."""
+        # Mock implementation for development
+        count_1 = int(params.get('count_1', params.get('count_x', 2)))
+        count_2 = int(params.get('count_2', params.get('count_y', 2)))
+        dist_1 = self._extract_dimension_value(params.get('distance_1', params.get('spacing_x', 10)))
+        dist_2 = self._extract_dimension_value(params.get('distance_2', params.get('spacing_y', 10)))
+        return {
+            'success': True,
+            'operation_id': op_id,
+            'feature_created': f'RectangularPattern_{op_id}',
+            'timeline_node': f"Timeline_RectangularPattern_{op_id}",
+            'feature_type': 'pattern_rectangular',
+            'dimensions': {'count_1': count_1, 'count_2': count_2, 'distance_1': dist_1, 'distance_2': dist_2}
         }
     
     def _execute_shell(self, op_id: str, params: Dict) -> Dict:
@@ -795,6 +952,31 @@ class PlanExecutor:
         # Mock implementation
         import uuid
         return f"Timeline_Node_{str(uuid.uuid4())[:8]}"
+
+    def _get_selected_face(self):
+        """Return the first selected BRepFace if available."""
+        if not FUSION_AVAILABLE or not self.ui:
+            return None
+        try:
+            selections = self.ui.activeSelections
+            if not selections or selections.count == 0:
+                return None
+            for i in range(selections.count):
+                sel = selections.item(i)
+                try:
+                    entity = sel.entity
+                except Exception:
+                    entity = None
+                # Check if it's a face
+                try:
+                    face = adsk.fusion.BRepFace.cast(entity)
+                except Exception:
+                    face = None
+                if face and getattr(face, 'isValid', True):
+                    return face
+            return None
+        except Exception:
+            return None
 
 
 def begin_transaction() -> TransactionContext:
