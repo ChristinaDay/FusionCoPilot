@@ -652,7 +652,7 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
             # Status line
             status_line = inputs.addTextBoxCommandInput(
                 'status_line',
-                '',
+                'Status',
                 '',
                 1,
                 True
@@ -662,7 +662,7 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
             # Results: use a string input (updates reliably across builds)
             results_input = inputs.addStringValueInput(
                 'results_display',
-                '',
+                'Log',
                 ''
             )
             results_input.isReadOnly = True
