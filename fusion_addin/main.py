@@ -709,22 +709,18 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
                 True
             )
             
-            # Parse button
+            # Parse/Preview/Apply buttons and a distinct Run action
             # Fusion expects a RELATIVE resource folder path here
             icon_dir = ''  # Use text-forward buttons to ensure labels are visible
-            # Parse button (push button, not checkbox)
-            parse_button = button_group.children.addBoolValueInput(
-                'parse_button',
-                'Parse',
-                False,
-                icon_dir,
-                False
+
+            # Emphasize the one-click pipeline
+            run_label = button_group.children.addTextBoxCommandInput(
+                'run_label',
+                '',
+                'One-click pipeline (Parse → Validate → Apply):',
+                1,
+                True
             )
-            parse_button.tooltip = "Convert natural language to structured plan"
-            try:
-                parse_button.isFullWidth = False
-            except Exception:
-                pass
 
             # Run button (executes full pipeline and keeps dialog open)
             run_button = button_group.children.addBoolValueInput(
@@ -736,7 +732,24 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
             )
             run_button.tooltip = "Parse + validate + apply in one step"
             try:
-                run_button.isFullWidth = False
+                run_button.isFullWidth = True
+            except Exception:
+                pass
+
+            # Divider before granular actions
+            button_group.children.addTextBoxCommandInput('actions_divider', '', '—', 1, True)
+
+            # Parse button (push button, not checkbox)
+            parse_button = button_group.children.addBoolValueInput(
+                'parse_button',
+                'Parse',
+                False,
+                icon_dir,
+                False
+            )
+            parse_button.tooltip = "Convert natural language to structured plan"
+            try:
+                parse_button.isFullWidth = False
             except Exception:
                 pass
             
