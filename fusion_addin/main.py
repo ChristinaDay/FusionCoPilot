@@ -653,7 +653,7 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
             status_line = inputs.addTextBoxCommandInput(
                 'status_line',
                 '',
-                'Ready',
+                '',
                 1,
                 True
             )
@@ -663,7 +663,7 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
             results_input = inputs.addStringValueInput(
                 'results_display',
                 '',
-                'Ready...'
+                ''
             )
             results_input.isReadOnly = True
             results_input.tooltip = "Shows parsing results and operation details"
@@ -687,10 +687,14 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
                 pass
             
             # Examples dropdown
-            examples = inputs.addDropDownCommandInput('example_prompts', '', adsk.core.DropDownStyles.TextListDropDownStyle)
+            examples = inputs.addDropDownCommandInput('example_prompts', 'Examples', adsk.core.DropDownStyles.TextListDropDownStyle)
             examples.listItems.add('Create a 25mm cube', False)
             examples.listItems.add('Create a 100x50x10mm rectangular plate', False)
             examples.listItems.add('Add a 6mm hole at the center', False)
+            try:
+                examples.isFullWidth = True
+            except Exception:
+                pass
 
             # Action buttons group
             button_group = inputs.addGroupCommandInput('action_buttons', 'Actions')
