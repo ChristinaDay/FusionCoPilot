@@ -718,35 +718,60 @@ class PlanExecutor:
                 # Fallback: use sketch origin
                 sp = face_sketch.sketchPoints.add(adsk.core.Point3D.create(0, 0, 0))
 
-            dia_val = adsk.core.ValueInput.createByReal(mm(diameter_mm))
-            hole_input = holes.createSimpleInput(dia_val)
-            # Prefer through-all extent first to avoid distance validation
+            # First attempt: native HoleFeature
             try:
-                hole_input.setAllExtent()
-            except Exception:
-                pass
-            # Then set position
-            try:
-                hole_input.setPositionBySketchPoint(sp)
-            except Exception:
-                # Fallback: use face bounding-box center as 3D point
+                dia_val = adsk.core.ValueInput.createByReal(mm(diameter_mm))
+                hole_input = holes.createSimpleInput(dia_val)
+                # Through-all extent first to avoid distance validation
                 try:
-                    bbox = target_face.boundingBox
-                    cx = (bbox.minPoint.x + bbox.maxPoint.x) / 2.0
-                    cy = (bbox.minPoint.y + bbox.maxPoint.y) / 2.0
-                    cz = (bbox.minPoint.z + bbox.maxPoint.z) / 2.0
-                    hole_input.setPositionByPoint(adsk.core.Point3D.create(cx, cy, cz), target_face)
-                except Exception as e2:
-                    raise ExecutionError(f"Failed to position hole: {e2}")
-
-            hole_feature = holes.add(hole_input)
-            try:
-                hole_feature.name = f'CoPilot_Hole_{op_id}'
+                    hole_input.setAllExtent()
+                except Exception:
+                    pass
+                hole_input.setPositionBySketchPoint(sp)
+                hole_feature = holes.add(hole_input)
+                try:
+                    hole_feature.name = f'CoPilot_Hole_{op_id}'
+                except Exception:
+                    pass
+                timeline_node = self._get_latest_timeline_node()
+                diameter = diameter_mm
             except Exception:
-                pass
-
-            timeline_node = self._get_latest_timeline_node()
-            diameter = diameter_mm
+                # Fallback: sketch circle and cut-extrude through-all
+                try:
+                    circles = face_sketch.sketchCurves.sketchCircles
+                    # Use projected sketch center point as circle center
+                    circle = circles.addByCenterRadius(sp.geometry, mm(diameter_mm) / 2.0)
+                    # Use last profile from the face sketch
+                    profile = None
+                    try:
+                        if face_sketch.profiles.count > 0:
+                            profile = face_sketch.profiles.item(face_sketch.profiles.count - 1)
+                    except Exception:
+                        profile = None
+                    if not profile:
+                        raise ExecutionError("Failed to determine circle profile for cut")
+                    extrudes = root_comp.features.extrudeFeatures
+                    ext_input = extrudes.createInput(profile, adsk.fusion.FeatureOperations.CutFeatureOperation)
+                    # Prefer symmetric extent with a large distance to guarantee through
+                    big_mm = 1000.0
+                    try:
+                        ext_input.setSymmetricExtent(adsk.core.ValueInput.createByReal(mm(big_mm)), True)
+                    except Exception:
+                        # Fallback to all-extent if available
+                        try:
+                            ext_input.setAllExtent()
+                        except Exception:
+                            # Last resort: one-side long distance
+                            ext_input.setDistanceExtent(False, adsk.core.ValueInput.createByReal(mm(big_mm)))
+                    ext = extrudes.add(ext_input)
+                    try:
+                        ext.name = f'CoPilot_HoleCut_{op_id}'
+                    except Exception:
+                        pass
+                    timeline_node = self._get_latest_timeline_node()
+                    diameter = diameter_mm
+                except Exception as e3:
+                    raise ExecutionError(f"Hole fallback failed: {e3}")
         else:
             # Development mock
             diameter = self._extract_dimension_value(params.get('diameter', 5))
