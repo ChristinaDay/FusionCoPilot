@@ -752,6 +752,13 @@ class PlanExecutor:
                         raise ExecutionError("Failed to determine circle profile for cut")
                     extrudes = root_comp.features.extrudeFeatures
                     ext_input = extrudes.createInput(profile, adsk.fusion.FeatureOperations.CutFeatureOperation)
+                    # Ensure the cut targets the correct body (face's body)
+                    try:
+                        oc = adsk.core.ObjectCollection.create()
+                        oc.add(target_face.body)
+                        ext_input.participantBodies = oc
+                    except Exception:
+                        pass
                     # Prefer symmetric extent with a large distance to guarantee through
                     big_mm = 1000.0
                     try:
