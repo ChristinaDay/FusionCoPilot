@@ -736,7 +736,7 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
             )
             run_button.tooltip = "Parse + validate + apply in one step"
             try:
-                run_button.isFullWidth = True
+                run_button.isFullWidth = False
             except Exception:
                 pass
 
