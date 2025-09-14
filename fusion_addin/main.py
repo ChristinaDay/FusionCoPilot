@@ -718,9 +718,13 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
                 'run_label',
                 '',
                 'One-click pipeline (Parse → Validate → Apply):',
-                1,
+                2,
                 True
             )
+            try:
+                run_label.isFullWidth = True
+            except Exception:
+                pass
 
             # Run button (executes full pipeline and keeps dialog open)
             run_button = button_group.children.addBoolValueInput(
