@@ -729,7 +729,7 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
             # Run button (executes full pipeline and keeps dialog open)
             run_button = button_group.children.addBoolValueInput(
                 'run_button',
-                'Run',
+                '\u00A0Run\u00A0',
                 False,
                 icon_dir,
                 False
@@ -746,7 +746,7 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
             # Parse button (push button, not checkbox)
             parse_button = button_group.children.addBoolValueInput(
                 'parse_button',
-                'Parse',
+                '\u00A0Parse\u00A0',
                 False,
                 icon_dir,
                 False
@@ -761,7 +761,7 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
             # Preview button (push button)
             preview_button = button_group.children.addBoolValueInput(
                 'preview_button',
-                'Preview',
+                '\u00A0Preview\u00A0',
                 False,
                 icon_dir,
                 False
@@ -776,7 +776,7 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
             # Apply button (push button)
             apply_button = button_group.children.addBoolValueInput(
                 'apply_button',
-                'Apply',
+                '\u00A0Apply\u00A0',
                 False,
                 icon_dir,
                 False
