@@ -652,7 +652,7 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
             # Status line
             status_line = inputs.addTextBoxCommandInput(
                 'status_line',
-                'Status',
+                '',
                 'Ready',
                 1,
                 True
@@ -662,24 +662,32 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
             # Results: use a string input (updates reliably across builds)
             results_input = inputs.addStringValueInput(
                 'results_display',
-                'Results',
+                '',
                 'Ready...'
             )
             results_input.isReadOnly = True
             results_input.tooltip = "Shows parsing results and operation details"
+            try:
+                results_input.isFullWidth = True
+            except Exception:
+                pass
 
             # Main prompt input
             prompt_input = inputs.addTextBoxCommandInput(
                 'prompt_input',
-                'Natural Language Prompt',
+                '',
                 'Describe what you want to create...',
-                5,  # Number of rows
-                False  # Read only
+                5,
+                False
             )
             prompt_input.tooltip = "Enter your natural language description of what you want to create"
+            try:
+                prompt_input.isFullWidth = True
+            except Exception:
+                pass
             
             # Examples dropdown
-            examples = inputs.addDropDownCommandInput('example_prompts', 'Examples', adsk.core.DropDownStyles.TextListDropDownStyle)
+            examples = inputs.addDropDownCommandInput('example_prompts', '', adsk.core.DropDownStyles.TextListDropDownStyle)
             examples.listItems.add('Create a 25mm cube', False)
             examples.listItems.add('Create a 100x50x10mm rectangular plate', False)
             examples.listItems.add('Add a 6mm hole at the center', False)
@@ -691,7 +699,7 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
             # Build tag to confirm fresh dialog
             build_label = inputs.addTextBoxCommandInput(
                 'build_info',
-                'Build',
+                '',
                 datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 1,
                 True
