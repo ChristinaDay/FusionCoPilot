@@ -1464,8 +1464,6 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                 # Directly invoke the full pipeline
                 try:
                     app.log("[CoPilot] Dialog: Run clicked", adsk.core.LogLevels.InfoLogLevel, adsk.core.LogTypes.ConsoleLogType)
-                    if ui:
-                        ui.messageBox('[CoPilot] Run start')
                 except Exception:
                     pass
                 try:
@@ -1500,16 +1498,14 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                                             adsk.core.LogTypes.ConsoleLogType)
                             except Exception:
                                 pass
-                            # One-click: launch background Apply command so geometry persists
+                            # Queue for execute phase so dialog stays open
                             try:
-                                bg_apply = ui.commandDefinitions.itemById('fusion_copilot_apply_now') if ui else None
-                                if bg_apply:
-                                    bg_apply.execute()
-                                status_line = inputs.itemById('status_line')
-                                if status_line:
-                                    status_line.text = 'Applying...'
+                                globals()['pending_apply_plan'] = sanitized_plan
                             except Exception:
                                 pass
+                            status_line = inputs.itemById('status_line')
+                            if status_line:
+                                status_line.text = 'Plan ready — press OK to commit'
                             return
                         else:
                             if rd:
@@ -1553,16 +1549,14 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                                     adsk.core.LogTypes.ConsoleLogType)
                     except Exception:
                         pass
-                    # One-click: background apply after offline validation
+                    # Queue for execute phase so dialog stays open
                     try:
-                        bg_apply = ui.commandDefinitions.itemById('fusion_copilot_apply_now') if ui else None
-                        if bg_apply:
-                            bg_apply.execute()
-                        status_line = inputs.itemById('status_line')
-                        if status_line:
-                            status_line.text = 'Applying...'
+                        globals()['pending_apply_plan'] = sanitized_plan
                     except Exception:
                         pass
+                    status_line = inputs.itemById('status_line')
+                    if status_line:
+                        status_line.text = 'Plan ready — press OK to commit'
                     return
                 except Exception as e:
                     try:
@@ -1582,24 +1576,18 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
             elif changed_input.id == 'apply_button' and changed_input.value:
                 try:
                     app.log("[CoPilot] Dialog: Apply clicked", adsk.core.LogLevels.InfoLogLevel, adsk.core.LogTypes.ConsoleLogType)
-                    if ui:
-                        ui.messageBox('[CoPilot] Apply clicked (dialog)')
                 except Exception:
                     pass
-                # Immediate apply via background command so geometry persists
+                # Queue for execute phase to ensure persistence and keep dialog open
                 try:
-                    bg_apply = ui.commandDefinitions.itemById('fusion_copilot_apply_now') if ui else None
-                    if bg_apply:
-                        bg_apply.execute()
-                    status_line = inputs.itemById('status_line')
-                    if status_line:
-                        status_line.text = 'Applying...'
-                    if FUSION_AVAILABLE and app:
-                        app.log("[CoPilot] Apply (background) launched",
-                                adsk.core.LogLevels.InfoLogLevel,
-                                adsk.core.LogTypes.ConsoleLogType)
+                    plan = globals().get('last_sanitized_plan', None)
+                    if plan is not None:
+                        globals()['pending_apply_plan'] = plan
                 except Exception:
                     pass
+                status_line = inputs.itemById('status_line')
+                if status_line:
+                    status_line.text = 'Apply queued — press OK to commit'
                 # Optional background apply disabled by default to avoid duplicate runs.
                 # Enable via settings['ui']['background_apply_after_apply'] = True if desired.
                 try:
@@ -1615,18 +1603,8 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                         except Exception:
                             needs_selection = False
                         if not needs_selection:
-                            if FUSION_AVAILABLE and app:
-                                app.log("[CoPilot] Apply (background): launching",
-                                        adsk.core.LogLevels.InfoLogLevel,
-                                        adsk.core.LogTypes.ConsoleLogType)
-                            bg_apply = ui.commandDefinitions.itemById('fusion_copilot_apply_now') if ui else None
-                            if not bg_apply:
-                                if FUSION_AVAILABLE and app:
-                                    app.log("[CoPilot] Apply (background): command missing",
-                                            adsk.core.LogLevels.WarningLogLevel,
-                                            adsk.core.LogTypes.ConsoleLogType)
-                            else:
-                                bg_apply.execute()
+                            # Even if enabled, we keep queued apply to avoid closing dialog
+                            pass
                     except Exception as e:
                         try:
                             if FUSION_AVAILABLE and app:
