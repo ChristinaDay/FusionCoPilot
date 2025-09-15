@@ -1082,6 +1082,13 @@ class CoPilotApplyNowExecuteHandler(adsk.core.CommandEventHandler if FUSION_AVAI
                 pass
             # Execute directly to avoid re-parsing different plan
             exec_result = executor.execute_plan(plan_to_run)
+            try:
+                if FUSION_AVAILABLE and app:
+                    app.log(f"[CoPilot] ApplyNow result: deleted_count={exec_result.get('deleted_count')} deleted={exec_result.get('deleted')}",
+                            adsk.core.LogLevels.InfoLogLevel,
+                            adsk.core.LogTypes.ConsoleLogType)
+            except Exception:
+                pass
             # Append a brief note to dialog history cache
             try:
                 prev = globals().get('dialog_results_cache', '') or ''

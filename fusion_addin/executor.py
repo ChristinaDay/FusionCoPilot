@@ -958,6 +958,18 @@ class PlanExecutor:
             bodies_to_remove = []  # fallback for captured history
 
             def delete_entity(entity) -> None:
+                # Prefer collecting bodies for RemoveFeature (more reliable with design history)
+                try:
+                    body_cast = adsk.fusion.BRepBody.cast(entity)
+                except Exception:
+                    body_cast = None
+                if body_cast:
+                    try:
+                        bodies_to_remove.append(body_cast)
+                    except Exception:
+                        pass
+                    return
+                # For non-body entities, use deleteMe
                 try:
                     name = getattr(entity, 'name', None)
                 except Exception:
@@ -1105,9 +1117,8 @@ class PlanExecutor:
                     except Exception:
                         pass
 
-            # If nothing was deleted via deleteMe (common when design history is captured),
-            # attempt a RemoveFeature on collected bodies
-            if len(deleted_names) == deleted_before and bodies_to_remove:
+            # Always attempt a RemoveFeature on collected bodies (handles design history)
+            if bodies_to_remove:
                 try:
                     oc = adsk.core.ObjectCollection.create()
                     for b in bodies_to_remove:
