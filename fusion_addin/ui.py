@@ -438,10 +438,25 @@ Examples:
 • Fillet all edges with 2mm radius
 • Create a linear pattern of 5 holes spaced 10mm apart"></textarea>
         
-        <div class="button-group">
-            <button id="parseBtn" class="btn btn-primary">🔍 Parse</button>
-            <button id="previewBtn" class="btn btn-secondary" disabled>👁️ Preview</button>
-            <button id="applyBtn" class="btn btn-success" disabled>✅ Apply</button>
+        <div class="button-group" style="align-items:center; gap:6px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:6px;">
+                <button id="parseBtn" class="btn btn-primary" title="Parse: Build plan only (no model changes)">🔍 Parse</button>
+                <span style="color:#6c757d; font-size:12px;" title="Parse: Build plan only (no model changes)">ⓘ</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px;">
+                <button id="previewBtn" class="btn btn-secondary" disabled title="Preview: Sandbox simulate (no model changes)">👁️ Preview</button>
+                <span style="color:#6c757d; font-size:12px;" title="Preview: Sandbox simulate (no model changes)">ⓘ</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px;">
+                <button id="applyBtn" class="btn btn-success" disabled title="Apply: Execute last plan (modifies model). Requires Parse/Run first.">✅ Apply</button>
+                <span style="color:#6c757d; font-size:12px;" title="Apply: Execute last plan (modifies model). Requires Parse/Run first.">ⓘ</span>
+            </div>
+        </div>
+        <div style="margin-top:8px; font-size:12px; color:#6c757d; line-height:1.4;">
+            <div><strong>Run</strong>: Parse → Validate → Apply (modifies model)</div>
+            <div><strong>Parse</strong>: Build plan only (no changes)</div>
+            <div><strong>Preview</strong>: Sandbox simulate (no changes)</div>
+            <div><strong>Apply</strong>: Execute last plan (modifies model)</div>
         </div>
         
         <div class="example-prompts">
@@ -500,6 +515,10 @@ Examples:
         parseBtn.addEventListener('click', handleParse);
         previewBtn.addEventListener('click', handlePreview);
         applyBtn.addEventListener('click', handleApply);
+        // Button hover help
+        parseBtn.title = 'Parse: Build a structured plan from your prompt (no model changes).';
+        previewBtn.title = 'Preview: Simulate the plan in a sandbox (no model changes).';
+        applyBtn.title = 'Apply: Execute the last parsed plan on your model.';
         
         function setPrompt(text) {
             promptInput.value = text;
@@ -513,7 +532,7 @@ Examples:
                 return;
             }
             
-            setProcessing(true, 'Parsing natural language...');
+            setProcessing(true, 'Parse: Converting prompt → plan...');
             
             // Send message to Fusion add-in
             window.fusionJavaScriptHandler.handle('parse', JSON.stringify({
@@ -528,7 +547,7 @@ Examples:
                 return;
             }
             
-            setProcessing(true, 'Generating preview...');
+            setProcessing(true, 'Preview: Simulating plan in sandbox...');
             
             window.fusionJavaScriptHandler.handle('preview', JSON.stringify({
                 action: 'preview',
@@ -546,7 +565,7 @@ Examples:
                 return;
             }
             
-            setProcessing(true, 'Applying operations...');
+            setProcessing(true, 'Apply: Executing operations on model...');
             
             window.fusionJavaScriptHandler.handle('apply', JSON.stringify({
                 action: 'apply',

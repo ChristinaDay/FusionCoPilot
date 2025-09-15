@@ -705,17 +705,33 @@ class PlanExecutor:
                 face_sketch.name = f'CoPilot_HoleSketch_{op_id}'
             except Exception:
                 pass
-            # Prefer the geometric center of the face projected into sketch space
+            # Determine placement point in sketch space:
+            # 1) Use provided center_point (interpreted in face sketch space, in mm)
+            # 2) Otherwise, project the face center into sketch space
+            # 3) Fallback to sketch origin
+            sp = None
             try:
-                bbox = target_face.boundingBox
-                cx = (bbox.minPoint.x + bbox.maxPoint.x) / 2.0
-                cy = (bbox.minPoint.y + bbox.maxPoint.y) / 2.0
-                cz = (bbox.minPoint.z + bbox.maxPoint.z) / 2.0
-                center_model = adsk.core.Point3D.create(cx, cy, cz)
-                center_sketch = face_sketch.modelToSketchSpace(center_model)
-                sp = face_sketch.sketchPoints.add(center_sketch)
+                if isinstance(center_point, dict) and (
+                    abs(float(center_point.get('x', 0))) > 1e-9 or
+                    abs(float(center_point.get('y', 0))) > 1e-9
+                ):
+                    cp = adsk.core.Point3D.create(mm(center_point.get('x', 0)), mm(center_point.get('y', 0)), 0)
+                    sp = face_sketch.sketchPoints.add(cp)
             except Exception:
-                # Fallback: use sketch origin
+                sp = None
+            if sp is None:
+                try:
+                    bbox = target_face.boundingBox
+                    cx = (bbox.minPoint.x + bbox.maxPoint.x) / 2.0
+                    cy = (bbox.minPoint.y + bbox.maxPoint.y) / 2.0
+                    cz = (bbox.minPoint.z + bbox.maxPoint.z) / 2.0
+                    center_model = adsk.core.Point3D.create(cx, cy, cz)
+                    center_sketch = face_sketch.modelToSketchSpace(center_model)
+                    sp = face_sketch.sketchPoints.add(center_sketch)
+                except Exception:
+                    sp = None
+            if sp is None:
+                # Last resort
                 sp = face_sketch.sketchPoints.add(adsk.core.Point3D.create(0, 0, 0))
 
             # First attempt: native HoleFeature
@@ -728,6 +744,13 @@ class PlanExecutor:
                 except Exception:
                     pass
                 hole_input.setPositionBySketchPoint(sp)
+                # Hint target body for stability on complex designs
+                try:
+                    oc = adsk.core.ObjectCollection.create()
+                    oc.add(target_face.body)
+                    hole_input.participantBodies = oc
+                except Exception:
+                    pass
                 hole_feature = holes.add(hole_input)
                 try:
                     hole_feature.name = f'CoPilot_Hole_{op_id}'

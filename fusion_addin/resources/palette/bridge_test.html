@@ -17,6 +17,8 @@
     <button id="pingLegacy">Ping (Legacy)</button>
     <button id="pingNew">Ping (New)</button>
     <button id="parseOffline">Parse Offline</button>
+    <button id="preview">Preview</button>
+    <button id="apply">Apply</button>
   </div>
   <div id="status">Ready</div>
 
@@ -25,6 +27,8 @@
     const pingLegacyBtn = document.getElementById('pingLegacy');
     const pingNewBtn = document.getElementById('pingNew');
     const parseOfflineBtn = document.getElementById('parseOffline');
+    const previewBtn = document.getElementById('preview');
+    const applyBtn = document.getElementById('apply');
 
     function setStatus(text) {
       statusEl.textContent = text;
@@ -60,6 +64,18 @@
       if (!ok) setStatus('Neither bridge available for parse');
     });
 
+    previewBtn.addEventListener('click', () => {
+      const ok = sendLegacy('preview', { action: 'preview' }) ||
+                 sendNew('preview', { action: 'preview' });
+      if (!ok) setStatus('Neither bridge available for preview');
+    });
+
+    applyBtn.addEventListener('click', () => {
+      const ok = sendLegacy('apply', { action: 'apply' }) ||
+                 sendNew('apply', { action: 'apply' });
+      if (!ok) setStatus('Neither bridge available for apply');
+    });
+
     // Receive messages from Fusion
     function handleFusionMessage(message) {
       try {
@@ -68,6 +84,10 @@
           setStatus(data.status || 'Ready');
         } else if (data.type === 'parseResult') {
           setStatus(`Parse OK: operations=${(data.plan && data.plan.operations ? data.plan.operations.length : 0)}`);
+        } else if (data.type === 'previewResult') {
+          setStatus(data.success ? `Preview OK: features=${(data.preview_data && data.preview_data.estimated_features ? data.preview_data.estimated_features.length : 0)}` : `Preview failed: ${data.error}`);
+        } else if (data.type === 'applyResult') {
+          setStatus(data.success ? `Apply OK: features=${(data.features_created ? data.features_created.length : 0)}` : `Apply failed: ${data.error_message}`);
         } else if (data.type === 'error') {
           setStatus(`Error: ${data.message}`);
         } else {

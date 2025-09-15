@@ -175,32 +175,40 @@ def palette_parse_callback(prompt: str):
 
 def palette_preview_callback(plan: Dict):
     try:
+        if copilot_ui:
+            copilot_ui.update_status("Generating preview...", True)
         preview_start = datetime.now()
         # Use provided plan or last
         use_plan = plan or last_sanitized_plan
         if not use_plan:
             if copilot_ui:
                 copilot_ui.show_preview_result(False, error='No plan available to preview')
+                copilot_ui.update_status("No plan available to preview", False)
             return
         result = executor.preview_plan_in_sandbox(use_plan)
         duration = (datetime.now() - preview_start).total_seconds()
         if result.get('success'):
             if copilot_ui:
                 copilot_ui.show_preview_result(True, preview_data=result.get('preview_data', {}), duration=duration)
+                copilot_ui.update_status("Preview ready", False)
         else:
             if copilot_ui:
                 copilot_ui.show_preview_result(False, error=result.get('error', 'Unknown error'))
+                copilot_ui.update_status("Preview failed", False)
     except Exception as e:
         if copilot_ui:
             copilot_ui.show_preview_result(False, error=str(e))
+            copilot_ui.update_status("Preview error", False)
 
 
 def palette_apply_callback(plan: Dict):
     try:
+        if copilot_ui:
+            copilot_ui.update_status("Applying operations...", True)
         use_plan = plan or last_sanitized_plan
         if not use_plan:
             # Try to generate one quickly
-            generated = CoPilotApplyNowExecuteHandler().send_to_llm('create a cube') or CoPilotExecuteHandler()._offline_canned_response('create a cube')
+            generated = CoPilotApplyNowExecuteHandler().send_to_llm('create a cube') or CoPilotApplyNowExecuteHandler()._offline_canned_response('create a cube')
             if generated:
                 is_valid, sanitized_plan, _ = sanitizer.sanitize_plan(generated)
                 if is_valid:
@@ -212,16 +220,20 @@ def palette_apply_callback(plan: Dict):
         if not use_plan:
             if copilot_ui:
                 copilot_ui.show_apply_result(False, error='No plan available to apply')
+                copilot_ui.update_status("No plan to apply", False)
             return
         exec_result = executor.execute_plan(use_plan)
         if copilot_ui:
             if exec_result.get('success'):
                 copilot_ui.show_apply_result(True, execution_result=exec_result)
+                copilot_ui.update_status("Ready", False)
             else:
                 copilot_ui.show_apply_result(False, error=exec_result.get('error_message', 'Unknown error'))
+                copilot_ui.update_status("Apply failed", False)
     except Exception as e:
         if copilot_ui:
             copilot_ui.show_apply_result(False, error=str(e))
+            copilot_ui.update_status("Apply error", False)
 
 
 def run(context):
@@ -713,19 +725,6 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
             # Fusion expects a RELATIVE resource folder path here
             icon_dir = ''  # Use text-forward buttons to ensure labels are visible
 
-            # Emphasize the one-click pipeline
-            run_label = button_group.children.addTextBoxCommandInput(
-                'run_label',
-                '',
-                'One-click pipeline (Parse → Validate → Apply):',
-                2,
-                True
-            )
-            try:
-                run_label.isFullWidth = True
-            except Exception:
-                pass
-
             # Run button (executes full pipeline and keeps dialog open)
             run_button = button_group.children.addBoolValueInput(
                 'run_button',
@@ -734,16 +733,33 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
                 icon_dir,
                 False
             )
-            run_button.tooltip = "Parse + validate + apply in one step"
+            run_button.tooltip = (
+                "Run: Parse → Validate → Apply in one click.\n"
+                "- Parses your prompt into a plan\n"
+                "- Validates the plan\n"
+                "- Applies operations to your active design (modifies model)"
+            )
             try:
                 run_button.isFullWidth = False
             except Exception:
                 pass
 
+            # Run short description directly under Run button (two lines, no scroll)
+            run_desc = button_group.children.addTextBoxCommandInput(
+                'run_desc',
+                '',
+                'Parse → Validate → Apply\n(modifies model)',
+                2,
+                True
+            )
+            try:
+                run_desc.isFullWidth = True
+            except Exception:
+                pass
             # Divider before granular actions
             button_group.children.addTextBoxCommandInput('actions_divider', '', '—', 1, True)
 
-            # Parse button (push button, not checkbox)
+            # Parse button (push button)
             parse_button = button_group.children.addBoolValueInput(
                 'parse_button',
                 '\u00A0Parse\u00A0',
@@ -751,13 +767,24 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
                 icon_dir,
                 False
             )
-            parse_button.tooltip = "Convert natural language to structured plan"
+            parse_button.tooltip = (
+                "Parse: Convert your natural-language prompt into a structured plan.\n"
+                "- No geometry changes\n"
+                "- Enables Preview or Apply"
+            )
             try:
                 parse_button.isFullWidth = False
             except Exception:
                 pass
+            # Description next to Parse
+            parse_desc = button_group.children.addTextBoxCommandInput(
+                'parse_desc',
+                '',
+                'Build plan only (no changes)',
+                1,
+                True
+            )
             
-            # Preview button
             # Preview button (push button)
             preview_button = button_group.children.addBoolValueInput(
                 'preview_button',
@@ -766,13 +793,23 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
                 icon_dir,
                 False
             )
-            preview_button.tooltip = "Preview operations in sandbox mode"
+            preview_button.tooltip = (
+                "Preview: Simulate the plan in a sandbox.\n"
+                "- No geometry changes\n"
+                "- Shows estimated features and duration"
+            )
             try:
                 preview_button.isFullWidth = False
             except Exception:
                 pass
+            preview_desc = button_group.children.addTextBoxCommandInput(
+                'preview_desc',
+                '',
+                'Sandbox simulate (no changes)',
+                1,
+                True
+            )
             
-            # Apply button
             # Apply button (push button)
             apply_button = button_group.children.addBoolValueInput(
                 'apply_button',
@@ -781,12 +818,37 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
                 icon_dir,
                 False
             )
-            apply_button.tooltip = "Apply operations to active design"
+            apply_button.tooltip = (
+                "Apply: Execute the last parsed plan on your active design.\n"
+                "- Modifies model\n"
+                "- Requires a validated plan (Parse or Run first)"
+            )
             try:
                 apply_button.isFullWidth = False
             except Exception:
                 pass
-            
+            apply_desc = button_group.children.addTextBoxCommandInput(
+                'apply_desc',
+                '',
+                'Execute last plan (modifies model)',
+                1,
+                True
+            )
+
+            # Simple vertical layout: button then short description under it
+            try:
+                # Parse button + desc
+                button_group.children.addCommandInput(parse_button)
+                button_group.children.addCommandInput(parse_desc)
+                # Preview button + desc
+                button_group.children.addCommandInput(preview_button)
+                button_group.children.addCommandInput(preview_desc)
+                # Apply button + desc
+                button_group.children.addCommandInput(apply_button)
+                button_group.children.addCommandInput(apply_desc)
+            except Exception:
+                pass
+
             # (Results input defined above)
             
         except Exception as e:
@@ -808,14 +870,17 @@ class CoPilotExecuteHandler(adsk.core.CommandEventHandler if FUSION_AVAILABLE el
             inputs = args.command.commandInputs
             # If an Apply was requested, run it here so the dialog is in a stable execute phase
             try:
-                global pending_apply_plan
+                _pending = globals().get('pending_apply_plan', None)
             except Exception:
-                pending_apply_plan = None
-            if pending_apply_plan is not None:
+                _pending = None
+            if _pending is not None:
                 try:
                     self._apply_plan_now(inputs)
                 finally:
-                    pending_apply_plan = None
+                    try:
+                        globals()['pending_apply_plan'] = None
+                    except Exception:
+                        pass
                 return
             
             # Get the prompt text
@@ -900,7 +965,7 @@ class CoPilotApplyNowExecuteHandler(adsk.core.CommandEventHandler if FUSION_AVAI
             except Exception:
                 last_sanitized_plan = None
             if not last_sanitized_plan:
-                exec_handler = CoPilotExecuteHandler()
+                exec_handler = CoPilotApplyNowExecuteHandler()
                 prompt_text = 'create a cube'
                 plan = self.send_to_llm(prompt_text)
                 if not plan:
@@ -1343,7 +1408,7 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                 except Exception:
                     pass
                 # Run the pipeline inline here for reliable UI updates
-                exec_handler = CoPilotExecuteHandler()
+                exec_handler = CoPilotApplyNowExecuteHandler()
                 try:
                     prompt_input = inputs.itemById('prompt_input')
                     prompt_text = prompt_input.text if prompt_input else ""
@@ -1368,9 +1433,12 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                                             adsk.core.LogTypes.ConsoleLogType)
                             except Exception:
                                 pass
+                            # Queue apply for execute phase so geometry persists
                             try:
-                                if FUSION_AVAILABLE and ui:
-                                    ui.messageBox("Co-Pilot: Run completed")
+                                globals()['pending_apply_plan'] = last_sanitized_plan
+                                status_line = inputs.itemById('status_line')
+                                if status_line:
+                                    status_line.text = 'Plan ready — press OK to commit.'
                             except Exception:
                                 pass
                             return
@@ -1416,9 +1484,12 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                                     adsk.core.LogTypes.ConsoleLogType)
                     except Exception:
                         pass
+                    # Queue apply for execute phase so geometry persists
                     try:
-                        if FUSION_AVAILABLE and ui:
-                            ui.messageBox(f"Co-Pilot: Offline plan ready\nOperations: {len(ops)}")
+                        globals()['pending_apply_plan'] = last_sanitized_plan
+                        status_line = inputs.itemById('status_line')
+                        if status_line:
+                            status_line.text = 'Plan ready — press OK to commit.'
                     except Exception:
                         pass
                     return
@@ -1444,47 +1515,53 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                         ui.messageBox('[CoPilot] Apply clicked (dialog)')
                 except Exception:
                     pass
-                # Run apply immediately so geometry appears
+                # Queue apply for execute phase so geometry persists
                 try:
+                    globals()['pending_apply_plan'] = last_sanitized_plan
+                    status_line = inputs.itemById('status_line')
+                    if status_line:
+                        status_line.text = 'Apply queued — press OK to commit.'
                     if FUSION_AVAILABLE and app:
-                        app.log("[CoPilot] Apply (immediate): starting",
+                        app.log("[CoPilot] Apply queued for execute phase",
                                 adsk.core.LogLevels.InfoLogLevel,
                                 adsk.core.LogTypes.ConsoleLogType)
                 except Exception:
                     pass
+                # Optional background apply disabled by default to avoid duplicate runs.
+                # Enable via settings['ui']['background_apply_after_apply'] = True if desired.
                 try:
-                    self.handle_apply_button(inputs)
+                    bg_enabled = settings.get('ui', {}).get('background_apply_after_apply', False)
                 except Exception:
-                    pass
-                # Also trigger background apply (skip for selection-dependent ops like holes)
-                try:
-                    needs_selection = False
+                    bg_enabled = False
+                if bg_enabled:
                     try:
-                        ops = (last_sanitized_plan or {}).get('operations', [])
-                        needs_selection = any(op.get('op') in ('create_hole', 'fillet', 'chamfer') for op in ops)
-                    except Exception:
                         needs_selection = False
-                    if not needs_selection:
-                        if FUSION_AVAILABLE and app:
-                            app.log("[CoPilot] Apply (background): launching",
-                                    adsk.core.LogLevels.InfoLogLevel,
-                                    adsk.core.LogTypes.ConsoleLogType)
-                        bg_apply = ui.commandDefinitions.itemById('fusion_copilot_apply_now') if ui else None
-                        if not bg_apply:
+                        try:
+                            ops = (last_sanitized_plan or {}).get('operations', [])
+                            needs_selection = any(op.get('op') in ('create_hole', 'fillet', 'chamfer') for op in ops)
+                        except Exception:
+                            needs_selection = False
+                        if not needs_selection:
                             if FUSION_AVAILABLE and app:
-                                app.log("[CoPilot] Apply (background): command missing",
-                                        adsk.core.LogLevels.WarningLogLevel,
+                                app.log("[CoPilot] Apply (background): launching",
+                                        adsk.core.LogLevels.InfoLogLevel,
                                         adsk.core.LogTypes.ConsoleLogType)
-                        else:
-                            bg_apply.execute()
-                except Exception as e:
-                    try:
-                        if FUSION_AVAILABLE and app:
-                            app.log(f"[CoPilot] Failed to start background apply: {e}",
-                                    adsk.core.LogLevels.ErrorLogLevel,
-                                    adsk.core.LogTypes.ConsoleLogType)
-                    except Exception:
-                        pass
+                            bg_apply = ui.commandDefinitions.itemById('fusion_copilot_apply_now') if ui else None
+                            if not bg_apply:
+                                if FUSION_AVAILABLE and app:
+                                    app.log("[CoPilot] Apply (background): command missing",
+                                            adsk.core.LogLevels.WarningLogLevel,
+                                            adsk.core.LogTypes.ConsoleLogType)
+                            else:
+                                bg_apply.execute()
+                    except Exception as e:
+                        try:
+                            if FUSION_AVAILABLE and app:
+                                app.log(f"[CoPilot] Failed to start background apply: {e}",
+                                        adsk.core.LogLevels.ErrorLogLevel,
+                                        adsk.core.LogTypes.ConsoleLogType)
+                        except Exception:
+                            pass
 
             # Examples selection → fill prompt
             if changed_input.id == 'example_prompts':
@@ -1587,7 +1664,7 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
             if last_sanitized_plan:
                 ops = [op.get('op') for op in last_sanitized_plan.get('operations', [])]
             else:
-                exec_handler = CoPilotExecuteHandler()
+                exec_handler = CoPilotApplyNowExecuteHandler()
                 last_prompt = inputs.itemById('prompt_input').text if inputs.itemById('prompt_input') else ''
                 offline = exec_handler._offline_canned_response(last_prompt or 'cube') or {}
                 ops = [op.get('op') for op in offline.get('operations', [])]
@@ -1624,7 +1701,7 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
             # Ensure we have a plan to apply
             plan = last_sanitized_plan
             if not plan:
-                exec_handler = CoPilotExecuteHandler()
+                exec_handler = CoPilotApplyNowExecuteHandler()
                 last_prompt = inputs.itemById('prompt_input').text if inputs.itemById('prompt_input') else ''
                 # First try to get a fresh plan from LLM/stub using the current prompt
                 fresh = None
