@@ -955,6 +955,7 @@ class PlanExecutor:
             design = self.design
             root_comp = design.rootComponent
             timeline = design.timeline
+            bodies_to_remove = []  # fallback for captured history
 
             def delete_entity(entity) -> None:
                 try:
@@ -984,6 +985,13 @@ class PlanExecutor:
                     for i in range(sels.count):
                         try:
                             ent = sels.item(i).entity
+                            # Collect bodies too for RemoveFeature fallback
+                            try:
+                                body = adsk.fusion.BRepBody.cast(ent)
+                                if body:
+                                    bodies_to_remove.append(body)
+                            except Exception:
+                                pass
                             delete_entity(ent)
                         except Exception:
                             pass
@@ -1013,6 +1021,7 @@ class PlanExecutor:
                             b = bodies.item(i)
                             bname = getattr(b, 'name', '')
                             if name_matches(bname, pattern):
+                                bodies_to_remove.append(b)
                                 delete_entity(b)
                         except Exception:
                             pass
@@ -1078,6 +1087,7 @@ class PlanExecutor:
                                 b = bodies.item(i)
                                 bname = getattr(b, 'name', '')
                                 if bname and bname.startswith('CoPilot_'):
+                                    bodies_to_remove.append(b)
                                     delete_entity(b)
                                     break
                             except Exception:
@@ -1090,9 +1100,32 @@ class PlanExecutor:
                         bodies = root_comp.bRepBodies
                         if bodies and bodies.count > 0:
                             b = bodies.item(bodies.count - 1)
+                            bodies_to_remove.append(b)
                             delete_entity(b)
                     except Exception:
                         pass
+
+            # If nothing was deleted via deleteMe (common when design history is captured),
+            # attempt a RemoveFeature on collected bodies
+            if len(deleted_names) == deleted_before and bodies_to_remove:
+                try:
+                    oc = adsk.core.ObjectCollection.create()
+                    for b in bodies_to_remove:
+                        oc.add(b)
+                    rem = root_comp.features.removeFeatures.add(oc)
+                    try:
+                        rem.name = f'CoPilot_Remove_{op_id}'
+                    except Exception:
+                        pass
+                    try:
+                        for b in bodies_to_remove:
+                            name = getattr(b, 'name', None)
+                            if name:
+                                deleted_names.append(name)
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
 
             # Zoom to fit after deletion
             try:
