@@ -1639,6 +1639,11 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
             # Delete: Selected
             elif changed_input.id == 'delete_selected_btn' and changed_input.value:
                 try:
+                    try:
+                        if FUSION_AVAILABLE and app:
+                            app.log("[CoPilot] Dialog: Delete Selected clicked", adsk.core.LogLevels.InfoLogLevel, adsk.core.LogTypes.ConsoleLogType)
+                    except Exception:
+                        pass
                     rd = inputs.itemById('results_display')
                     if rd:
                         rd.value = 'Delete Selected: preparing...'
@@ -1657,6 +1662,11 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                 try:
                     pat_input = inputs.itemById('delete_name_pattern')
                     pattern = pat_input.value if pat_input else ''
+                    try:
+                        if FUSION_AVAILABLE and app:
+                            app.log(f"[CoPilot] Dialog: Delete By Name clicked (pattern='{pattern}')", adsk.core.LogLevels.InfoLogLevel, adsk.core.LogTypes.ConsoleLogType)
+                    except Exception:
+                        pass
                     rd = inputs.itemById('results_display')
                     if not pattern or not pattern.strip():
                         if rd:
@@ -1677,6 +1687,11 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
             # Delete: Last
             elif changed_input.id == 'delete_last_btn' and changed_input.value:
                 try:
+                    try:
+                        if FUSION_AVAILABLE and app:
+                            app.log("[CoPilot] Dialog: Delete Last clicked", adsk.core.LogLevels.InfoLogLevel, adsk.core.LogTypes.ConsoleLogType)
+                    except Exception:
+                        pass
                     rd = inputs.itemById('results_display')
                     if rd:
                         rd.value = 'Delete Last: preparing...'
@@ -1908,7 +1923,6 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
     def _queue_delete_plan(self, inputs, mode: str, name_pattern: Optional[str] = None):
         """Build a delete_feature plan, sanitize it, set as last plan, and trigger background apply."""
         try:
-            global last_sanitized_plan
             # Build minimal delete plan
             plan = {
                 'plan_id': f'delete_{mode}',
@@ -1932,7 +1946,15 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                 if rd:
                     rd.value = 'Delete validation failed' + ("\n" + "\n".join(messages) if messages else '')
                 return
-            last_sanitized_plan = sanitized_plan
+            try:
+                globals()['last_sanitized_plan'] = sanitized_plan
+            except Exception:
+                pass
+            try:
+                if FUSION_AVAILABLE and app:
+                    app.log(f"[CoPilot] Delete plan queued (mode={mode})", adsk.core.LogLevels.InfoLogLevel, adsk.core.LogTypes.ConsoleLogType)
+            except Exception:
+                pass
             # Trigger background apply so deletion persists
             try:
                 bg_apply = ui.commandDefinitions.itemById('fusion_copilot_apply_now') if ui else None
