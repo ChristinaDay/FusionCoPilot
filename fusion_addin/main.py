@@ -79,6 +79,8 @@ last_network_error: Optional[str] = None
 event_handlers: list = []
 # Defer apply until command.execute to ensure persistence of created features
 pending_apply_plan: Optional[Dict] = None
+# Cache dialog results/log text across reopen so history persists
+dialog_results_cache: Optional[str] = None
 
 # Configure logging
 def setup_logging():
@@ -686,7 +688,7 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
             results_input = inputs.addStringValueInput(
                 'results_display',
                 'Log',
-                ''
+                globals().get('dialog_results_cache', '') or ''
             )
             results_input.isReadOnly = True
             results_input.tooltip = "Shows parsing results and operation details"
@@ -1125,12 +1127,20 @@ class CoPilotApplyNowExecuteHandler(adsk.core.CommandEventHandler if FUSION_AVAI
             if results_display:
                 current = results_display.value
                 results_display.value = (current or "") + "\n\nValidating and sanitizing plan..."
+                try:
+                    globals()['dialog_results_cache'] = results_display.value
+                except Exception:
+                    pass
             
             is_valid, sanitized_plan, messages = sanitizer.sanitize_plan(parsed_plan)
             
             if not is_valid:
                 if results_display:
                     results_display.text += f"\n\nValidation failed:\n" + "\n".join(messages)
+                    try:
+                        globals()['dialog_results_cache'] = results_display.text
+                    except Exception:
+                        pass
                 return
             
             # Persist sanitized plan for subsequent Apply/Preview steps
@@ -1146,6 +1156,10 @@ class CoPilotApplyNowExecuteHandler(adsk.core.CommandEventHandler if FUSION_AVAI
                 current = (current or "") + f"\n\nPlan validated successfully!"
                 current = current + f"\nOperations: {op_count}"
                 results_display.value = current
+                try:
+                    globals()['dialog_results_cache'] = results_display.value
+                except Exception:
+                    pass
             # Also show a quick summary dialog so you see immediate feedback
             try:
                 if FUSION_AVAILABLE and ui:
@@ -1157,6 +1171,10 @@ class CoPilotApplyNowExecuteHandler(adsk.core.CommandEventHandler if FUSION_AVAI
                 if results_display:
                     current = results_display.value
                     results_display.value = (current or "") + (f"\n\nWarnings:\n" + "\n".join(messages))
+                    try:
+                        globals()['dialog_results_cache'] = results_display.value
+                    except Exception:
+                        pass
             
             # Step 4: Preview (if requested)
             # This would be handled by button clicks in a full implementation
@@ -1164,11 +1182,19 @@ class CoPilotApplyNowExecuteHandler(adsk.core.CommandEventHandler if FUSION_AVAI
             if results_display:
                 current = results_display.value
                 results_display.value = (current or "") + f"\n\nReady for preview or execution."
+                try:
+                    globals()['dialog_results_cache'] = results_display.value
+                except Exception:
+                    pass
             
         except Exception as e:
             logger.error(f"Error processing prompt: {e}")
             if results_display:
                 results_display.value = f"Error: {str(e)}"
+                try:
+                    globals()['dialog_results_cache'] = results_display.value
+                except Exception:
+                    pass
     
     def send_to_llm(self, prompt: str) -> Optional[Dict]:
         """Send prompt to LLM and get structured plan using production LLM service."""
@@ -1603,6 +1629,10 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                         results_display = inputs.itemById('results_display')
                         if results_display:
                             results_display.value = f"Error: {e}"
+                            try:
+                                globals()['dialog_results_cache'] = results_display.value
+                            except Exception:
+                                pass
                     except Exception:
                         pass
             elif changed_input.id == 'preview_button' and changed_input.value:
@@ -1763,6 +1793,10 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
             prompt_text = prompt_input.text if prompt_input else ""
             if results_display:
                 results_display.value = "Parsing natural language prompt...\n(Contacting LLM or using offline canned plan)"
+                try:
+                    globals()['dialog_results_cache'] = results_display.value
+                except Exception:
+                    pass
             
             # Prefer LLM/Stub first
             exec_handler = CoPilotExecuteHandler()
@@ -1822,6 +1856,10 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
             results_display = inputs.itemById('results_display')
             if results_display:
                 results_display.value = f"Error: {e}"
+                try:
+                    globals()['dialog_results_cache'] = results_display.value
+                except Exception:
+                    pass
     
     def handle_preview_button(self, inputs):
         """Handle preview button click."""
@@ -1840,6 +1878,10 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
             preview_text = 'Preview:\n' + ('\n'.join(ops) if ops else 'No operations')
             if results_display:
                 results_display.value = preview_text
+                try:
+                    globals()['dialog_results_cache'] = results_display.value
+                except Exception:
+                    pass
             try:
                 if FUSION_AVAILABLE and app:
                     app.log('[CoPilot] ' + preview_text.replace('\n', ' | '),
@@ -1853,6 +1895,10 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
             rd = inputs.itemById('results_display')
             if rd:
                 rd.value = f"Preview error: {e}"
+                try:
+                    globals()['dialog_results_cache'] = rd.value
+                except Exception:
+                    pass
     
     def handle_apply_button(self, inputs):
         """Handle apply button click."""
@@ -1898,6 +1944,10 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                 if not is_valid:
                     if results_display:
                         results_display.value = 'Apply failed: No valid plan available.'
+                        try:
+                            globals()['dialog_results_cache'] = results_display.value
+                        except Exception:
+                            pass
                     if FUSION_AVAILABLE and ui:
                         ui.messageBox('Apply failed: No valid plan available.')
                     return
@@ -1908,6 +1958,10 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
             if not executor:
                 if results_display:
                     results_display.value = 'Apply failed: Executor not initialized.'
+                    try:
+                        globals()['dialog_results_cache'] = results_display.value
+                    except Exception:
+                        pass
                 if FUSION_AVAILABLE and ui:
                     ui.messageBox('Apply failed: Executor not initialized.')
                 return
@@ -1920,6 +1974,10 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                 summary = f"Applied {ops_count} operations. Created {len(created)} features."
                 if results_display:
                     results_display.value = summary
+                    try:
+                        globals()['dialog_results_cache'] = results_display.value
+                    except Exception:
+                        pass
                 try:
                     if FUSION_AVAILABLE and app:
                         app.log('[CoPilot] Apply success: ' + summary,
@@ -1933,6 +1991,10 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                 err = exec_result.get('error_message', 'Unknown error')
                 if results_display:
                     results_display.value = f'Apply failed: {err}'
+                    try:
+                        globals()['dialog_results_cache'] = results_display.value
+                    except Exception:
+                        pass
                 try:
                     if FUSION_AVAILABLE and app:
                         app.log('[CoPilot] Apply failed: ' + err,
@@ -1946,6 +2008,10 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
             rd = inputs.itemById('results_display')
             if rd:
                 rd.value = f"Apply error: {e}"
+                try:
+                    globals()['dialog_results_cache'] = rd.value
+                except Exception:
+                    pass
 
     def _queue_delete_plan(self, inputs, mode: str, name_pattern: Optional[str] = None):
         """Build a delete_feature plan, sanitize it, set as last plan, and trigger background apply."""
@@ -2004,6 +2070,10 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
             rd = inputs.itemById('results_display')
             if rd:
                 rd.value = f'Delete error: {e}'
+                try:
+                    globals()['dialog_results_cache'] = rd.value
+                except Exception:
+                    pass
 
 
 # Development/Testing Functions
