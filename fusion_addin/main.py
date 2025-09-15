@@ -1013,6 +1013,12 @@ class CoPilotApplyNowHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAI
             exec_handler = CoPilotApplyNowExecuteHandler()
             command.execute.add(exec_handler)
             event_handlers.append(exec_handler)
+            # Ensure the background command does not close our dialog; reopen if requested
+            try:
+                command.isOKButtonVisible = False
+                command.isCancelButtonVisible = False
+            except Exception:
+                pass
         except Exception as e:
             try:
                 if FUSION_AVAILABLE and app:
@@ -1074,6 +1080,15 @@ class CoPilotApplyNowExecuteHandler(adsk.core.CommandEventHandler if FUSION_AVAI
             # Execute apply using existing handler
             input_handler = CoPilotInputChangedHandler()
             input_handler.handle_apply_button(inputs)
+            # Reopen the Co-Pilot dialog if flagged
+            try:
+                if globals().get('reopen_after_apply', False) and ui:
+                    cmd_def = ui.commandDefinitions.itemById('fusion_copilot_open')
+                    if cmd_def:
+                        cmd_def.execute()
+                globals()['reopen_after_apply'] = False
+            except Exception:
+                pass
             try:
                 if FUSION_AVAILABLE and app:
                     app.log("[CoPilot] ApplyNow: completed",
@@ -1513,6 +1528,10 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                                 pass
                             # Immediate background apply so geometry persists and dialog stays open
                             try:
+                                try:
+                                    globals()['reopen_after_apply'] = True
+                                except Exception:
+                                    pass
                                 bg_apply = ui.commandDefinitions.itemById('fusion_copilot_apply_now') if ui else None
                                 if bg_apply:
                                     bg_apply.execute()
@@ -1566,6 +1585,10 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                         pass
                     # Immediate background apply in offline path
                     try:
+                        try:
+                            globals()['reopen_after_apply'] = True
+                        except Exception:
+                            pass
                         bg_apply = ui.commandDefinitions.itemById('fusion_copilot_apply_now') if ui else None
                         if bg_apply:
                             bg_apply.execute()
@@ -1597,6 +1620,10 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                     pass
                 # Immediate background apply
                 try:
+                    try:
+                        globals()['reopen_after_apply'] = True
+                    except Exception:
+                        pass
                     bg_apply = ui.commandDefinitions.itemById('fusion_copilot_apply_now') if ui else None
                     if bg_apply:
                         bg_apply.execute()
@@ -1957,6 +1984,10 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                 pass
             # Immediate background apply for delete actions
             try:
+                try:
+                    globals()['reopen_after_apply'] = True
+                except Exception:
+                    pass
                 bg_apply = ui.commandDefinitions.itemById('fusion_copilot_apply_now') if ui else None
                 if bg_apply:
                     bg_apply.execute()
