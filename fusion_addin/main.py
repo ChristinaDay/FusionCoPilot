@@ -1433,12 +1433,14 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                                             adsk.core.LogTypes.ConsoleLogType)
                             except Exception:
                                 pass
-                            # Queue apply for execute phase so geometry persists
+                            # One-click: launch background Apply command so geometry persists
                             try:
-                                globals()['pending_apply_plan'] = last_sanitized_plan
+                                bg_apply = ui.commandDefinitions.itemById('fusion_copilot_apply_now') if ui else None
+                                if bg_apply:
+                                    bg_apply.execute()
                                 status_line = inputs.itemById('status_line')
                                 if status_line:
-                                    status_line.text = 'Plan ready — press OK to commit.'
+                                    status_line.text = 'Applying...'
                             except Exception:
                                 pass
                             return
@@ -1484,12 +1486,14 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                                     adsk.core.LogTypes.ConsoleLogType)
                     except Exception:
                         pass
-                    # Queue apply for execute phase so geometry persists
+                    # One-click: background apply after offline validation
                     try:
-                        globals()['pending_apply_plan'] = last_sanitized_plan
+                        bg_apply = ui.commandDefinitions.itemById('fusion_copilot_apply_now') if ui else None
+                        if bg_apply:
+                            bg_apply.execute()
                         status_line = inputs.itemById('status_line')
                         if status_line:
-                            status_line.text = 'Plan ready — press OK to commit.'
+                            status_line.text = 'Applying...'
                     except Exception:
                         pass
                     return
@@ -1515,14 +1519,16 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                         ui.messageBox('[CoPilot] Apply clicked (dialog)')
                 except Exception:
                     pass
-                # Queue apply for execute phase so geometry persists
+                # Immediate apply via background command so geometry persists
                 try:
-                    globals()['pending_apply_plan'] = last_sanitized_plan
+                    bg_apply = ui.commandDefinitions.itemById('fusion_copilot_apply_now') if ui else None
+                    if bg_apply:
+                        bg_apply.execute()
                     status_line = inputs.itemById('status_line')
                     if status_line:
-                        status_line.text = 'Apply queued — press OK to commit.'
+                        status_line.text = 'Applying...'
                     if FUSION_AVAILABLE and app:
-                        app.log("[CoPilot] Apply queued for execute phase",
+                        app.log("[CoPilot] Apply (background) launched",
                                 adsk.core.LogLevels.InfoLogLevel,
                                 adsk.core.LogTypes.ConsoleLogType)
                 except Exception:
