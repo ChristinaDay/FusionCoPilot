@@ -370,6 +370,8 @@ class PlanExecutor:
             return self._execute_pattern_rectangular(op_id, params)
         elif op_type == 'shell':
             return self._execute_shell(op_id, params)
+        elif op_type == 'delete_feature':
+            return self._execute_delete_feature(op_id, params)
         else:
             raise ExecutionError(f"Unsupported operation type: {op_type}")
     
@@ -926,6 +928,115 @@ class PlanExecutor:
             'feature_type': 'shell',
             'dimensions': {'thickness': thickness}
         }
+
+    def _execute_delete_feature(self, op_id: str, params: Dict) -> Dict:
+        """Execute delete_feature operation.
+        Modes:
+        - selected: delete currently selected entities/features
+        - by_name: delete items whose name matches name_pattern (substring or regex)
+        - last: delete most recent CoPilot_* feature in the timeline
+        """
+        if not FUSION_AVAILABLE:
+            # Mock delete
+            logger.info(f"[MOCK] Deleted feature(s) using mode={params.get('mode','selected')}")
+            return {
+                'success': True,
+                'operation_id': op_id,
+                'feature_created': None,
+                'timeline_node': None,
+                'feature_type': 'delete_feature'
+            }
+
+        mode = params.get('mode', 'selected')
+        deleted_names: List[str] = []
+
+        try:
+            ui = self.ui
+            design = self.design
+            root_comp = design.rootComponent
+            timeline = design.timeline
+
+            def delete_entity(entity) -> None:
+                try:
+                    name = getattr(entity, 'name', None)
+                except Exception:
+                    name = None
+                try:
+                    if hasattr(entity, 'deleteMe'):
+                        entity.deleteMe()
+                        if name:
+                            deleted_names.append(name)
+                except Exception:
+                    pass
+
+            if mode == 'selected':
+                sels = ui.activeSelections if ui else None
+                if sels and sels.count > 0:
+                    for i in range(sels.count):
+                        try:
+                            ent = sels.item(i).entity
+                            delete_entity(ent)
+                        except Exception:
+                            pass
+                else:
+                    raise ExecutionError("No selection to delete")
+
+            elif mode == 'by_name':
+                pattern = params.get('name_pattern', '')
+                import re as _re
+                # Iterate timeline features and sketches
+                try:
+                    for i in range(timeline.count):
+                        try:
+                            item = timeline.item(i)
+                            ent = getattr(item, 'entity', None)
+                            name = getattr(ent, 'name', '') if ent else ''
+                            matched = False
+                            try:
+                                matched = bool(_re.search(pattern, name))
+                            except Exception:
+                                matched = pattern in name
+                            if matched and ent:
+                                delete_entity(ent)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+
+            elif mode == 'last':
+                # Find last timeline entity whose name starts with CoPilot_
+                try:
+                    for i in range(timeline.count - 1, -1, -1):
+                        try:
+                            item = timeline.item(i)
+                            ent = getattr(item, 'entity', None)
+                            name = getattr(ent, 'name', '') if ent else ''
+                            if name and name.startswith('CoPilot_'):
+                                delete_entity(ent)
+                                break
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+
+            # Zoom to fit after deletion
+            try:
+                vp = self.app.activeViewport
+                if vp:
+                    vp.fit()
+            except Exception:
+                pass
+
+            return {
+                'success': True,
+                'operation_id': op_id,
+                'feature_created': None,
+                'timeline_node': None,
+                'feature_type': 'delete_feature',
+                'deleted': deleted_names
+            }
+        except Exception as e:
+            raise ExecutionError(f"Delete failed: {e}")
     
     def _extract_dimension_value(self, dimension: Union[Dict, float, int]) -> float:
         """Extract numeric value from dimension parameter."""

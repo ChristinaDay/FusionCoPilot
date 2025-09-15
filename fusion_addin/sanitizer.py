@@ -248,6 +248,8 @@ class PlanSanitizer:
             sanitized_params = self._sanitize_shell_params(sanitized_params)
         elif op_type in ['pattern_linear', 'pattern_circular']:
             sanitized_params = self._sanitize_pattern_params(sanitized_params)
+        elif op_type == 'delete_feature':
+            sanitized_params = self._sanitize_delete_params(sanitized_params)
         
         # Convert all dimensional parameters
         sanitized_params = self._convert_dimensional_params(sanitized_params)
@@ -367,6 +369,28 @@ class PlanSanitizer:
                 if distance <= 0:
                     raise ValidationError(f"{dist_param} must be positive")
         
+        return params
+
+    def _sanitize_delete_params(self, params: Dict) -> Dict:
+        """Sanitize parameters for delete_feature operation.
+        Supported modes:
+        - selected: delete currently selected entities/features
+        - by_name: delete timeline items/entities whose name matches name_pattern (substring or regex)
+        - last: delete most recent CoPilot_* feature in timeline
+        """
+        mode = params.get('mode', 'selected')
+        valid_modes = ['selected', 'by_name', 'last']
+        if mode not in valid_modes:
+            raise ValidationError(f"Invalid delete mode: {mode}. Must be one of {valid_modes}")
+        if mode == 'by_name':
+            pattern = params.get('name_pattern')
+            if not isinstance(pattern, str) or len(pattern.strip()) == 0:
+                raise ValidationError("name_pattern is required for delete mode 'by_name'")
+            # Light sanity check on regex
+            try:
+                re.compile(pattern)
+            except Exception:
+                self.validation_warnings.append(f"name_pattern '{pattern}' is not a valid regex; will use substring match")
         return params
     
     def _convert_dimensional_params(self, params: Dict) -> Dict:
@@ -530,7 +554,8 @@ class PlanSanitizer:
             'create_plane', 'create_axis', 'create_point', 'set_dimension',
             'add_constraint', 'rename_feature', 'create_component',
             'create_joint', 'create_hole', 'thread_hole', 'countersink_hole',
-            'counterbore_hole'
+            'counterbore_hole',
+            'delete_feature'
         ]
     
     def _default_machine_profile(self) -> Dict:
