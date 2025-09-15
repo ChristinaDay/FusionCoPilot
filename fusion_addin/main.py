@@ -203,26 +203,33 @@ def palette_preview_callback(plan: Dict):
 
 def palette_apply_callback(plan: Dict):
     try:
+        use_plan = plan or last_sanitized_plan
+        # First click: queue, second click: execute queued
+        try:
+            _pending = globals().get('pending_apply_plan', None)
+        except Exception:
+            _pending = None
+        if _pending is None:
+            # Prepare a plan if missing
+            if not use_plan:
+                if copilot_ui:
+                    copilot_ui.update_status("No plan to apply", False)
+                return
+            try:
+                globals()['pending_apply_plan'] = use_plan
+            except Exception:
+                pass
+            if copilot_ui:
+                copilot_ui.update_status("Apply queued — press Apply again to commit", False)
+            return
+        # Execute queued plan
         if copilot_ui:
             copilot_ui.update_status("Applying operations...", True)
-        use_plan = plan or last_sanitized_plan
-        if not use_plan:
-            # Try to generate one quickly
-            generated = CoPilotApplyNowExecuteHandler().send_to_llm('create a cube') or CoPilotApplyNowExecuteHandler()._offline_canned_response('create a cube')
-            if generated:
-                is_valid, sanitized_plan, _ = sanitizer.sanitize_plan(generated)
-                if is_valid:
-                    try:
-                        globals()['last_sanitized_plan'] = sanitized_plan
-                    except Exception:
-                        pass
-                    use_plan = sanitized_plan
-        if not use_plan:
-            if copilot_ui:
-                copilot_ui.show_apply_result(False, error='No plan available to apply')
-                copilot_ui.update_status("No plan to apply", False)
-            return
-        exec_result = executor.execute_plan(use_plan)
+        exec_result = executor.execute_plan(_pending)
+        try:
+            globals()['pending_apply_plan'] = None
+        except Exception:
+            pass
         if copilot_ui:
             if exec_result.get('success'):
                 copilot_ui.show_apply_result(True, execution_result=exec_result)
