@@ -1005,19 +1005,34 @@ class PlanExecutor:
 
             elif mode == 'last':
                 # Find last timeline entity whose name starts with CoPilot_
+                deleted_before = len(deleted_names)
                 try:
                     for i in range(timeline.count - 1, -1, -1):
                         try:
                             item = timeline.item(i)
                             ent = getattr(item, 'entity', None)
                             name = getattr(ent, 'name', '') if ent else ''
-                            if name and name.startswith('CoPilot_'):
+                            if name and name.startswith('CoPilot_') and ent:
                                 delete_entity(ent)
                                 break
                         except Exception:
                             pass
                 except Exception:
                     pass
+                # Fallback: if nothing deleted yet, delete the most recent deletable timeline entity
+                if len(deleted_names) == deleted_before:
+                    try:
+                        for i in range(timeline.count - 1, -1, -1):
+                            try:
+                                item = timeline.item(i)
+                                ent = getattr(item, 'entity', None)
+                                if ent and hasattr(ent, 'deleteMe'):
+                                    delete_entity(ent)
+                                    break
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
 
             # Zoom to fit after deletion
             try:
