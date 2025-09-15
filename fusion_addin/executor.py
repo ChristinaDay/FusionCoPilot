@@ -969,6 +969,15 @@ class PlanExecutor:
                 except Exception:
                     pass
 
+            def name_matches(value: str, pattern: str) -> bool:
+                if not value:
+                    return False
+                try:
+                    import re as _re
+                    return bool(_re.search(pattern, value))
+                except Exception:
+                    return pattern in value
+
             if mode == 'selected':
                 sels = ui.activeSelections if ui else None
                 if sels and sels.count > 0:
@@ -983,7 +992,6 @@ class PlanExecutor:
 
             elif mode == 'by_name':
                 pattern = params.get('name_pattern', '')
-                import re as _re
                 # Iterate timeline features and sketches
                 try:
                     for i in range(timeline.count):
@@ -991,13 +999,21 @@ class PlanExecutor:
                             item = timeline.item(i)
                             ent = getattr(item, 'entity', None)
                             name = getattr(ent, 'name', '') if ent else ''
-                            matched = False
-                            try:
-                                matched = bool(_re.search(pattern, name))
-                            except Exception:
-                                matched = pattern in name
-                            if matched and ent:
+                            if name_matches(name, pattern) and ent:
                                 delete_entity(ent)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+                # Also try matching body names
+                try:
+                    bodies = root_comp.bRepBodies
+                    for i in range(bodies.count - 1, -1, -1):
+                        try:
+                            b = bodies.item(i)
+                            bname = getattr(b, 'name', '')
+                            if name_matches(bname, pattern):
+                                delete_entity(b)
                         except Exception:
                             pass
                 except Exception:
@@ -1028,6 +1044,21 @@ class PlanExecutor:
                                 ent = getattr(item, 'entity', None)
                                 if ent and hasattr(ent, 'deleteMe'):
                                     delete_entity(ent)
+                                    break
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+                # Fallback 2: if still nothing, delete the last CoPilot_* body
+                if len(deleted_names) == deleted_before:
+                    try:
+                        bodies = root_comp.bRepBodies
+                        for i in range(bodies.count - 1, -1, -1):
+                            try:
+                                b = bodies.item(i)
+                                bname = getattr(b, 'name', '')
+                                if bname and bname.startswith('CoPilot_'):
+                                    delete_entity(b)
                                     break
                             except Exception:
                                 pass
