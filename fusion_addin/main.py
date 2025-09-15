@@ -1513,6 +1513,11 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                             status_line = inputs.itemById('status_line')
                             if status_line:
                                 status_line.text = 'Plan ready — press OK to commit'
+                            try:
+                                if FUSION_AVAILABLE and ui:
+                                    ui.messageBox('Co-Pilot: Plan queued. Press OK to commit.')
+                            except Exception:
+                                pass
                             return
                         else:
                             if rd:
@@ -1564,6 +1569,11 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                     status_line = inputs.itemById('status_line')
                     if status_line:
                         status_line.text = 'Plan ready — press OK to commit'
+                    try:
+                        if FUSION_AVAILABLE and ui:
+                            ui.messageBox('Co-Pilot: Plan queued. Press OK to commit.')
+                    except Exception:
+                        pass
                     return
                 except Exception as e:
                     try:
@@ -1595,6 +1605,11 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                 status_line = inputs.itemById('status_line')
                 if status_line:
                     status_line.text = 'Apply queued — press OK to commit'
+                try:
+                    if FUSION_AVAILABLE and ui:
+                        ui.messageBox('Co-Pilot: Apply queued. Press OK to commit.')
+                except Exception:
+                    pass
                 # Optional background apply disabled by default to avoid duplicate runs.
                 # Enable via settings['ui']['background_apply_after_apply'] = True if desired.
                 try:
@@ -1955,6 +1970,11 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
             status_line = inputs.itemById('status_line')
             if status_line:
                 status_line.text = 'Delete queued — press OK to commit'
+            try:
+                if FUSION_AVAILABLE and ui:
+                    ui.messageBox('Co-Pilot: Delete queued. Press OK to commit.')
+            except Exception:
+                pass
         except Exception as e:
             rd = inputs.itemById('results_display')
             if rd:
