@@ -1955,16 +1955,21 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                     app.log(f"[CoPilot] Delete plan queued (mode={mode})", adsk.core.LogLevels.InfoLogLevel, adsk.core.LogTypes.ConsoleLogType)
             except Exception:
                 pass
-            # Trigger background apply so deletion persists
+            # Queue apply for execute phase (press OK to commit)
             try:
-                bg_apply = ui.commandDefinitions.itemById('fusion_copilot_apply_now') if ui else None
-                if bg_apply:
-                    bg_apply.execute()
-                status_line = inputs.itemById('status_line')
-                if status_line:
-                    status_line.text = 'Applying delete...'
+                globals()['pending_apply_plan'] = sanitized_plan
             except Exception:
                 pass
+            try:
+                if FUSION_AVAILABLE and app:
+                    app.log("[CoPilot] Delete plan queued for execute phase (press OK)",
+                            adsk.core.LogLevels.InfoLogLevel,
+                            adsk.core.LogTypes.ConsoleLogType)
+            except Exception:
+                pass
+            status_line = inputs.itemById('status_line')
+            if status_line:
+                status_line.text = 'Delete queued — press OK to commit'
         except Exception as e:
             rd = inputs.itemById('results_display')
             if rd:
