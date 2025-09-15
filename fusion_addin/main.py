@@ -850,6 +850,73 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
                 pass
 
             # (Results input defined above)
+
+            # --- Delete actions ---
+            try:
+                button_group.children.addTextBoxCommandInput('delete_divider', '', '—', 1, True)
+
+                # Delete Selected
+                delete_selected_btn = button_group.children.addBoolValueInput(
+                    'delete_selected_btn',
+                    '\u00A0Delete Selected\u00A0',
+                    False,
+                    icon_dir,
+                    False
+                )
+                delete_selected_btn.tooltip = (
+                    "Delete Selected: Deletes currently selected entities or features.\n"
+                    "- Modifies model\n"
+                    "- Requires an active selection"
+                )
+                button_group.children.addTextBoxCommandInput(
+                    'delete_selected_desc', '', 'Delete current selection', 1, True
+                )
+
+                # Delete By Name (with pattern)
+                delete_name_pattern = button_group.children.addStringValueInput(
+                    'delete_name_pattern', 'Name match', ''
+                )
+                try:
+                    delete_name_pattern.isFullWidth = True
+                except Exception:
+                    pass
+                delete_name_pattern.tooltip = (
+                    "Substring or regex to match feature/timeline item names.\n"
+                    "Examples: 'CoPilot_', '^Extrude', 'Hole'"
+                )
+                delete_by_name_btn = button_group.children.addBoolValueInput(
+                    'delete_by_name_btn',
+                    '\u00A0Delete By Name\u00A0',
+                    False,
+                    icon_dir,
+                    False
+                )
+                delete_by_name_btn.tooltip = (
+                    "Delete By Name: Deletes timeline items whose names match the pattern.\n"
+                    "- Modifies model\n"
+                    "- Uses substring match; falls back from invalid regex"
+                )
+                button_group.children.addTextBoxCommandInput(
+                    'delete_by_name_desc', '', 'Delete items that match the name', 1, True
+                )
+
+                # Delete Last (last CoPilot_* feature)
+                delete_last_btn = button_group.children.addBoolValueInput(
+                    'delete_last_btn',
+                    '\u00A0Delete Last\u00A0',
+                    False,
+                    icon_dir,
+                    False
+                )
+                delete_last_btn.tooltip = (
+                    "Delete Last: Deletes the most recent feature named with CoPilot_ prefix.\n"
+                    "- Modifies model"
+                )
+                button_group.children.addTextBoxCommandInput(
+                    'delete_last_desc', '', 'Delete last CoPilot_* feature', 1, True
+                )
+            except Exception:
+                pass
             
         except Exception as e:
             logger.error(f"Error creating command inputs: {e}")
@@ -1569,6 +1636,60 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                         except Exception:
                             pass
 
+            # Delete: Selected
+            elif changed_input.id == 'delete_selected_btn' and changed_input.value:
+                try:
+                    rd = inputs.itemById('results_display')
+                    if rd:
+                        rd.value = 'Delete Selected: preparing...'
+                    self._queue_delete_plan(inputs, mode='selected')
+                except Exception as e:
+                    try:
+                        if FUSION_AVAILABLE and app:
+                            app.log(f"[CoPilot] Delete Selected error: {e}",
+                                    adsk.core.LogLevels.ErrorLogLevel,
+                                    adsk.core.LogTypes.ConsoleLogType)
+                    except Exception:
+                        pass
+
+            # Delete: By Name
+            elif changed_input.id == 'delete_by_name_btn' and changed_input.value:
+                try:
+                    pat_input = inputs.itemById('delete_name_pattern')
+                    pattern = pat_input.value if pat_input else ''
+                    rd = inputs.itemById('results_display')
+                    if not pattern or not pattern.strip():
+                        if rd:
+                            rd.value = 'Enter a name pattern before using Delete By Name.'
+                    else:
+                        if rd:
+                            rd.value = f"Delete By Name: '{pattern}' — preparing..."
+                        self._queue_delete_plan(inputs, mode='by_name', name_pattern=pattern.strip())
+                except Exception as e:
+                    try:
+                        if FUSION_AVAILABLE and app:
+                            app.log(f"[CoPilot] Delete By Name error: {e}",
+                                    adsk.core.LogLevels.ErrorLogLevel,
+                                    adsk.core.LogTypes.ConsoleLogType)
+                    except Exception:
+                        pass
+
+            # Delete: Last
+            elif changed_input.id == 'delete_last_btn' and changed_input.value:
+                try:
+                    rd = inputs.itemById('results_display')
+                    if rd:
+                        rd.value = 'Delete Last: preparing...'
+                    self._queue_delete_plan(inputs, mode='last')
+                except Exception as e:
+                    try:
+                        if FUSION_AVAILABLE and app:
+                            app.log(f"[CoPilot] Delete Last error: {e}",
+                                    adsk.core.LogLevels.ErrorLogLevel,
+                                    adsk.core.LogTypes.ConsoleLogType)
+                    except Exception:
+                        pass
+
             # Examples selection → fill prompt
             if changed_input.id == 'example_prompts':
                 try:
@@ -1783,6 +1904,49 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
             rd = inputs.itemById('results_display')
             if rd:
                 rd.value = f"Apply error: {e}"
+
+    def _queue_delete_plan(self, inputs, mode: str, name_pattern: Optional[str] = None):
+        """Build a delete_feature plan, sanitize it, set as last plan, and trigger background apply."""
+        try:
+            global last_sanitized_plan
+            # Build minimal delete plan
+            plan = {
+                'plan_id': f'delete_{mode}',
+                'metadata': {
+                    'units': settings.get('processing', {}).get('units_default', 'mm')
+                },
+                'operations': [
+                    {
+                        'op_id': 'op_1',
+                        'op': 'delete_feature',
+                        'params': ({'mode': mode, 'name_pattern': name_pattern} if mode == 'by_name' else {'mode': mode})
+                    }
+                ]
+            }
+            try:
+                is_valid, sanitized_plan, messages = sanitizer.sanitize_plan(plan)
+            except Exception:
+                is_valid, sanitized_plan, messages = True, plan, []
+            rd = inputs.itemById('results_display')
+            if not is_valid:
+                if rd:
+                    rd.value = 'Delete validation failed' + ("\n" + "\n".join(messages) if messages else '')
+                return
+            last_sanitized_plan = sanitized_plan
+            # Trigger background apply so deletion persists
+            try:
+                bg_apply = ui.commandDefinitions.itemById('fusion_copilot_apply_now') if ui else None
+                if bg_apply:
+                    bg_apply.execute()
+                status_line = inputs.itemById('status_line')
+                if status_line:
+                    status_line.text = 'Applying delete...'
+            except Exception:
+                pass
+        except Exception as e:
+            rd = inputs.itemById('results_display')
+            if rd:
+                rd.value = f'Delete error: {e}'
 
 
 # Development/Testing Functions
