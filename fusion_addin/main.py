@@ -985,7 +985,9 @@ class CoPilotExecuteHandler(adsk.core.CommandEventHandler if FUSION_AVAILABLE el
     def _apply_plan_now(self, inputs):
         """Execute apply while in execute phase to ensure created geometry persists."""
         try:
-            self.handle_apply_button(inputs)
+            # Delegate to the input-changed handler's apply implementation
+            handler = CoPilotInputChangedHandler()
+            handler.handle_apply_button(inputs)
         except Exception as e:
             try:
                 if FUSION_AVAILABLE and app:
