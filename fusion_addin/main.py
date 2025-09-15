@@ -1555,6 +1555,10 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                             # Immediate background apply so geometry persists and dialog stays open
                             try:
                                 try:
+                                    globals()['pending_apply_plan'] = sanitized_plan
+                                except Exception:
+                                    pass
+                                try:
                                     globals()['reopen_after_apply'] = True
                                 except Exception:
                                     pass
@@ -1612,6 +1616,10 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                     # Immediate background apply in offline path
                     try:
                         try:
+                            globals()['pending_apply_plan'] = sanitized_plan
+                        except Exception:
+                            pass
+                        try:
                             globals()['reopen_after_apply'] = True
                         except Exception:
                             pass
@@ -1650,6 +1658,12 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                     pass
                 # Immediate background apply
                 try:
+                    try:
+                        plan_for_apply = globals().get('last_sanitized_plan', None)
+                        if plan_for_apply is not None:
+                            globals()['pending_apply_plan'] = plan_for_apply
+                    except Exception:
+                        pass
                     try:
                         globals()['reopen_after_apply'] = True
                     except Exception:
@@ -2050,6 +2064,10 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                 pass
             # Immediate background apply for delete actions
             try:
+                try:
+                    globals()['pending_apply_plan'] = sanitized_plan
+                except Exception:
+                    pass
                 try:
                     globals()['reopen_after_apply'] = True
                 except Exception:
