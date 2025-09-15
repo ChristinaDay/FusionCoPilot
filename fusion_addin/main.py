@@ -2079,7 +2079,7 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                 if status_line:
                     status_line.text = 'Deleting...'
                 if FUSION_AVAILABLE and app:
-                    app.log("[CoPilot] Delete plan applied (background)",
+                    app.log("[CoPilot] Delete plan applied (background). Waiting for ApplyNow output...",
                             adsk.core.LogLevels.InfoLogLevel,
                             adsk.core.LogTypes.ConsoleLogType)
             except Exception:

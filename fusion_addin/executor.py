@@ -1018,6 +1018,26 @@ class PlanExecutor:
                             pass
                 except Exception:
                     pass
+                # Also try deleting features whose created bodies match pattern
+                try:
+                    feats = root_comp.features
+                    for coll_name in dir(feats):
+                        try:
+                            coll = getattr(feats, coll_name)
+                            count = getattr(coll, 'count', 0)
+                        except Exception:
+                            count = 0
+                        if isinstance(count, int) and count > 0:
+                            for i in range(count - 1, -1, -1):
+                                try:
+                                    f = coll.item(i)
+                                    fname = getattr(f, 'name', '')
+                                    if name_matches(fname, pattern):
+                                        delete_entity(f)
+                                except Exception:
+                                    pass
+                except Exception:
+                    pass
 
             elif mode == 'last':
                 # Find last timeline entity whose name starts with CoPilot_
@@ -1064,6 +1084,15 @@ class PlanExecutor:
                                 pass
                     except Exception:
                         pass
+                # Fallback 3: if still nothing, delete the most recent body regardless of name
+                if len(deleted_names) == deleted_before:
+                    try:
+                        bodies = root_comp.bRepBodies
+                        if bodies and bodies.count > 0:
+                            b = bodies.item(bodies.count - 1)
+                            delete_entity(b)
+                    except Exception:
+                        pass
 
             # Zoom to fit after deletion
             try:
@@ -1079,7 +1108,8 @@ class PlanExecutor:
                 'feature_created': None,
                 'timeline_node': None,
                 'feature_type': 'delete_feature',
-                'deleted': deleted_names
+                'deleted': deleted_names,
+                'deleted_count': len(deleted_names)
             }
         except Exception as e:
             raise ExecutionError(f"Delete failed: {e}")
