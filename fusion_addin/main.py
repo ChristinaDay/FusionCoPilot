@@ -1047,41 +1047,48 @@ class CoPilotApplyNowExecuteHandler(adsk.core.CommandEventHandler if FUSION_AVAI
                             adsk.core.LogTypes.ConsoleLogType)
             except Exception:
                 pass
-            # Ensure a plan exists; if missing, build one via LLM/stub with default prompt
+            # Choose the plan to run: prefer a queued pending plan (e.g., delete),
+            # otherwise use last_sanitized_plan or build a default.
+            plan_to_run = None
+            try:
+                plan_to_run = globals().get('pending_apply_plan', None)
+            except Exception:
+                plan_to_run = None
             try:
                 global last_sanitized_plan
             except Exception:
                 last_sanitized_plan = None
-            if not last_sanitized_plan:
+            if plan_to_run is None:
+                plan_to_run = last_sanitized_plan
+            if plan_to_run is None:
                 exec_handler = CoPilotApplyNowExecuteHandler()
                 prompt_text = 'create a cube'
-                plan = self.send_to_llm(prompt_text)
-                if not plan:
-                    # Fall back to offline canned
-                    plan = exec_handler._offline_canned_response(prompt_text)
+                plan = self.send_to_llm(prompt_text) or exec_handler._offline_canned_response(prompt_text)
                 try:
-                    is_valid, sanitized_plan, messages = sanitizer.sanitize_plan(plan)
+                    is_valid, sanitized_plan, _ = sanitizer.sanitize_plan(plan)
                 except Exception:
-                    is_valid, sanitized_plan, messages = True, plan or {}, []
-                if is_valid:
-                    last_sanitized_plan = sanitized_plan
-                    try:
-                        if FUSION_AVAILABLE and app:
-                            app.log(f"[CoPilot] ApplyNow: plan ready (ops={len(sanitized_plan.get('operations', []))})",
-                                    adsk.core.LogLevels.InfoLogLevel,
-                                    adsk.core.LogTypes.ConsoleLogType)
-                    except Exception:
-                        pass
-                else:
-                    try:
-                        if FUSION_AVAILABLE and app:
-                            app.log("[CoPilot] ApplyNow: validation failed", adsk.core.LogLevels.ErrorLogLevel, adsk.core.LogTypes.ConsoleLogType)
-                    except Exception:
-                        pass
+                    is_valid, sanitized_plan, _ = True, (plan or {}), []
+                if not is_valid:
                     return
-            # Execute apply using existing handler
-            input_handler = CoPilotInputChangedHandler()
-            input_handler.handle_apply_button(inputs)
+                plan_to_run = sanitized_plan
+            # Clear pending and update last plan
+            try:
+                globals()['pending_apply_plan'] = None
+            except Exception:
+                pass
+            try:
+                globals()['last_sanitized_plan'] = plan_to_run
+            except Exception:
+                pass
+            # Execute directly to avoid re-parsing different plan
+            exec_result = executor.execute_plan(plan_to_run)
+            # Append a brief note to dialog history cache
+            try:
+                prev = globals().get('dialog_results_cache', '') or ''
+                note = "\nDelete executed." if any(op.get('op') == 'delete_feature' for op in plan_to_run.get('operations', [])) else "\nPlan executed."
+                globals()['dialog_results_cache'] = (prev + note).strip()
+            except Exception:
+                pass
             # Reopen the Co-Pilot dialog if flagged
             try:
                 if globals().get('reopen_after_apply', False) and ui:
