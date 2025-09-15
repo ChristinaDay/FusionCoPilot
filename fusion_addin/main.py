@@ -630,10 +630,14 @@ class CoPilotCommandHandler(adsk.core.CommandCreatedEventHandler if FUSION_AVAIL
                 return
                 
             command = args.command
-            # Ensure OK/Cancel are visible so we can commit actions in execute phase
+            # Keep dialog open: hide OK button and rename Cancel → Close
             try:
-                command.isOKButtonVisible = True
+                command.isOKButtonVisible = False
                 command.isCancelButtonVisible = True
+                try:
+                    command.cancelButtonText = 'Close'
+                except Exception:
+                    pass
             except Exception:
                 pass
             inputs = command.commandInputs
@@ -1505,17 +1509,14 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                                             adsk.core.LogTypes.ConsoleLogType)
                             except Exception:
                                 pass
-                            # Queue for execute phase so dialog stays open
+                            # Immediate background apply so geometry persists and dialog stays open
                             try:
-                                globals()['pending_apply_plan'] = sanitized_plan
-                            except Exception:
-                                pass
-                            status_line = inputs.itemById('status_line')
-                            if status_line:
-                                status_line.text = 'Plan ready — press OK to commit'
-                            try:
-                                if FUSION_AVAILABLE and ui:
-                                    ui.messageBox('Co-Pilot: Plan queued. Press OK to commit.')
+                                bg_apply = ui.commandDefinitions.itemById('fusion_copilot_apply_now') if ui else None
+                                if bg_apply:
+                                    bg_apply.execute()
+                                status_line = inputs.itemById('status_line')
+                                if status_line:
+                                    status_line.text = 'Applying...'
                             except Exception:
                                 pass
                             return
@@ -1561,17 +1562,14 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                                     adsk.core.LogTypes.ConsoleLogType)
                     except Exception:
                         pass
-                    # Queue for execute phase so dialog stays open
+                    # Immediate background apply in offline path
                     try:
-                        globals()['pending_apply_plan'] = sanitized_plan
-                    except Exception:
-                        pass
-                    status_line = inputs.itemById('status_line')
-                    if status_line:
-                        status_line.text = 'Plan ready — press OK to commit'
-                    try:
-                        if FUSION_AVAILABLE and ui:
-                            ui.messageBox('Co-Pilot: Plan queued. Press OK to commit.')
+                        bg_apply = ui.commandDefinitions.itemById('fusion_copilot_apply_now') if ui else None
+                        if bg_apply:
+                            bg_apply.execute()
+                        status_line = inputs.itemById('status_line')
+                        if status_line:
+                            status_line.text = 'Applying...'
                     except Exception:
                         pass
                     return
@@ -1595,16 +1593,16 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                     app.log("[CoPilot] Dialog: Apply clicked", adsk.core.LogLevels.InfoLogLevel, adsk.core.LogTypes.ConsoleLogType)
                 except Exception:
                     pass
-                # Queue for execute phase to ensure persistence and keep dialog open
+                # Immediate background apply
                 try:
-                    plan = globals().get('last_sanitized_plan', None)
-                    if plan is not None:
-                        globals()['pending_apply_plan'] = plan
+                    bg_apply = ui.commandDefinitions.itemById('fusion_copilot_apply_now') if ui else None
+                    if bg_apply:
+                        bg_apply.execute()
+                    status_line = inputs.itemById('status_line')
+                    if status_line:
+                        status_line.text = 'Applying...'
                 except Exception:
                     pass
-                status_line = inputs.itemById('status_line')
-                if status_line:
-                    status_line.text = 'Apply queued — press OK to commit'
                 try:
                     if FUSION_AVAILABLE and ui:
                         ui.messageBox('Co-Pilot: Apply queued. Press OK to commit.')
@@ -1955,24 +1953,18 @@ class CoPilotInputChangedHandler(adsk.core.InputChangedEventHandler if FUSION_AV
                     app.log(f"[CoPilot] Delete plan queued (mode={mode})", adsk.core.LogLevels.InfoLogLevel, adsk.core.LogTypes.ConsoleLogType)
             except Exception:
                 pass
-            # Queue apply for execute phase (press OK to commit)
+            # Immediate background apply for delete actions
             try:
-                globals()['pending_apply_plan'] = sanitized_plan
-            except Exception:
-                pass
-            try:
+                bg_apply = ui.commandDefinitions.itemById('fusion_copilot_apply_now') if ui else None
+                if bg_apply:
+                    bg_apply.execute()
+                status_line = inputs.itemById('status_line')
+                if status_line:
+                    status_line.text = 'Deleting...'
                 if FUSION_AVAILABLE and app:
-                    app.log("[CoPilot] Delete plan queued for execute phase (press OK)",
+                    app.log("[CoPilot] Delete plan applied (background)",
                             adsk.core.LogLevels.InfoLogLevel,
                             adsk.core.LogTypes.ConsoleLogType)
-            except Exception:
-                pass
-            status_line = inputs.itemById('status_line')
-            if status_line:
-                status_line.text = 'Delete queued — press OK to commit'
-            try:
-                if FUSION_AVAILABLE and ui:
-                    ui.messageBox('Co-Pilot: Delete queued. Press OK to commit.')
             except Exception:
                 pass
         except Exception as e:
