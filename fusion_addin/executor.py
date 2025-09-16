@@ -686,7 +686,20 @@ class PlanExecutor:
                         b = bodies.item(bodies.count - 1)
                         faces = getattr(b, 'faces', None)
                         if faces and faces.count > 0:
-                            target_face = faces.item(0)
+                            # Prefer largest planar face
+                            best = None
+                            best_area = -1.0
+                            for i in range(faces.count):
+                                try:
+                                    f = faces.item(i)
+                                    if getattr(f.geometry, 'surfaceType', None) == adsk.core.SurfaceTypes.PlaneSurfaceType:
+                                        a = getattr(f, 'area', 0.0)
+                                        if a > best_area:
+                                            best_area = a
+                                            best = f
+                                except Exception:
+                                    pass
+                            target_face = best or faces.item(0)
                 except Exception:
                     target_face = None
             if not target_face:
@@ -803,6 +816,10 @@ class PlanExecutor:
                     timeline_node = self._get_latest_timeline_node()
                     diameter = diameter_mm
                 except Exception as e3:
+                    try:
+                        self.app.log(f"[CoPilot] Hole fallback failed: {e3}", adsk.core.LogLevels.ErrorLogLevel, adsk.core.LogTypes.ConsoleLogType)
+                    except Exception:
+                        pass
                     raise ExecutionError(f"Hole fallback failed: {e3}")
         else:
             # Development mock
